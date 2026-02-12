@@ -77,7 +77,7 @@ int main() {
     {
         TIME.tick();
 
-        if(TIME.physicsTime())
+        while(TIME.physicsTime())
         {
             runPhysics();
         }
