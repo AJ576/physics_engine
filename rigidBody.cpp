@@ -1,5 +1,4 @@
 #include <iostream>
-#include <cmath>
 #include <chrono>
 
 using Clock = std::chrono::high_resolution_clock;
@@ -16,6 +15,32 @@ class RigidBody {
         std::array<float, 2> position; // m
         std::array<float, 2> velocity; // m/s
         std::array<float, 2> acceleration; // m/s^2
+        std::array<float, 2> force; // N
+
+        void numericalIntegration(float dt) {
+            if (mass == 0.0f) return;
+
+            // Numerical Integration. 
+            // We are using Semi-Implicit Euler Method for integration. So, we need to update the velocity first and then the position.
+            // This is because the velocity is dependent on the acceleration, and the position is dependent on the velocity.
+
+
+            // Acceleration
+            acceleration[0] = force[0] / mass;
+            acceleration[1] = force[1] / mass;
+
+            // Velocity
+            velocity[0] += acceleration[0] * dt;
+            velocity[1] += acceleration[1] * dt;
+            
+            // Position
+            position[0] += velocity[0] * dt;
+            position[1] += velocity[1] * dt;
+
+            // Reset force
+            force[0] = 0.0f;
+            force[1] = 0.0f;
+        }
 };
 
 class TimeManager {
