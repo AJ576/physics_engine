@@ -40,8 +40,11 @@ class RigidBody {
 };
 
 bool areColliding(const RigidBody& body1, const RigidBody& body2) {
-    if (pow(sqrt(pow(body1.position[0] - body2.position[0], 2) + pow(body1.position[1] - body2.position[1], 2)), 2) < (body1.radius + body2.radius)) return true;
-    else return false;
+    float dx = body1.position[0] - body2.position[0];
+    float dy = body1.position[1] - body2.position[1];
+    float distSq = dx * dx + dy * dy;
+    float rSum = body1.radius + body2.radius;
+    return distSq < rSum * rSum;
 }
 
 void calculateForce(RigidBody& body1, RigidBody& body2) {
@@ -66,10 +69,12 @@ int main() {
     body1.position = {0.0f, 0.0f};
     body1.velocity = {0.0f, 0.0f};
     body1.acceleration = {0.0f, 0.0f};
+    body1.force = {0.0f, 0.0f};
 
     body2.radius = 1.0f;
     body2.mass = 2.0f;
     body2.position = {21.0f, 21.0f};
     body2.velocity = {-1.0f, -1.0f};
     body2.acceleration = {0.0f, 0.0f};
+    body2.force = {0.0f, 0.0f};
 }
