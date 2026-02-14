@@ -1,5 +1,7 @@
 #include "rigidBody.hpp"
 #include "graphics.hpp"
+#include <cmath>
+#include <cstdio>
 #include <iostream>
 
 int main()
@@ -57,6 +59,23 @@ int main()
         // Draw body2 in blue
         std::array<int, 4> blue = {0, 0, 255, 255};
         graphics.drawCircle(body2, blue);
+
+        // Momentum display
+        float p1x = body1.mass * body1.velocity[0];
+        float p1y = body1.mass * body1.velocity[1];
+        float p2x = body2.mass * body2.velocity[0];
+        float p2y = body2.mass * body2.velocity[1];
+        float pTotalX = p1x + p2x;
+        float pTotalY = p1y + p2y;
+
+        std::array<int, 4> white = {255, 255, 255, 255};
+        char buf[128];
+        snprintf(buf, sizeof(buf), "Body1: px=%.1f py=%.1f |p|=%.1f", p1x, p1y, std::sqrt(p1x*p1x + p1y*p1y));
+        graphics.drawText(buf, 400, 10, white);
+        snprintf(buf, sizeof(buf), "Body2: px=%.1f py=%.1f |p|=%.1f", p2x, p2y, std::sqrt(p2x*p2x + p2y*p2y));
+        graphics.drawText(buf, 400, 35, white);
+        snprintf(buf, sizeof(buf), "Total: px=%.1f py=%.1f |p|=%.1f", pTotalX, pTotalY, std::sqrt(pTotalX*pTotalX + pTotalY*pTotalY));
+        graphics.drawText(buf, 400, 60, white);
 
         // Present the frame
         graphics.present();
