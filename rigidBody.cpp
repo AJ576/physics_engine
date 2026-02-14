@@ -1,81 +1,58 @@
+#include "rigidBody.hpp"
 #include <iostream>
-#include <chrono>
 
-using Clock = std::chrono::high_resolution_clock;
-using TimePoint = std::chrono::time_point<Clock>;
-using Duration = std::chrono::duration<double>;
-#include <array>
+float springConstant = 100.0f; // N/m - initialized with default value
 
-float springConstant; // N/m
+// RigidBody method implementation
+void RigidBody::numericalIntegration(float dt) {
+    if (mass == 0.0f) return;
 
-class RigidBody {
-    public:
-        float radius; // m
-        float mass; // kg
-        std::array<float, 2> position; // m
-        std::array<float, 2> velocity; // m/s
-        std::array<float, 2> acceleration; // m/s^2
-        std::array<float, 2> force; // N
+    // Numerical Integration. 
+    // We are using Semi-Implicit Euler Method for integration. So, we need to update the velocity first and then the position.
+    // This is because the velocity is dependent on the acceleration, and the position is dependent on the velocity.
 
-        void numericalIntegration(float dt) {
-            if (mass == 0.0f) return;
+    // Acceleration
+    acceleration[0] = force[0] / mass;
+    acceleration[1] = force[1] / mass;
 
-            // Numerical Integration. 
-            // We are using Semi-Implicit Euler Method for integration. So, we need to update the velocity first and then the position.
-            // This is because the velocity is dependent on the acceleration, and the position is dependent on the velocity.
-
-
-            // Acceleration
-            acceleration[0] = force[0] / mass;
-            acceleration[1] = force[1] / mass;
-
-            // Velocity
-            velocity[0] += acceleration[0] * dt;
-            velocity[1] += acceleration[1] * dt;
-            
-            // Position
-            position[0] += velocity[0] * dt;
-            position[1] += velocity[1] * dt;
-
-            // Reset force
-            force[0] = 0.0f;
-            force[1] = 0.0f;
-        }
-};
-
-class TimeManager {
-    private:
-        double accumulator = 0.0;
-        TimePoint last_time;
+    // Velocity
+    velocity[0] += acceleration[0] * dt;
+    velocity[1] += acceleration[1] * dt;
     
-    public:
-        const double fixedDeltaTime = 1.0/60.0; //60HZ
+    // Position
+    position[0] += velocity[0] * dt;
+    position[1] += velocity[1] * dt;
 
-        TimeManager(){
-            last_time = Clock::now();
-        }
+    // Reset force
+    force[0] = 0.0f;
+    force[1] = 0.0f;
+}
 
-        void tick()
-        {
-            auto current_time = Clock::now();
-            Duration passed_time = current_time-last_time;
-            last_time = current_time;
+// TimeManager method implementations
+TimeManager::TimeManager(){
+    last_time = Clock::now();
+}
 
-            accumulator += passed_time.count();
-        }
+void TimeManager::tick()
+{
+    auto current_time = Clock::now();
+    Duration passed_time = current_time-last_time;
+    last_time = current_time;
 
-        bool physicsTime()
-        {
-            if(accumulator > fixedDeltaTime)
-            {
-                accumulator-=fixedDeltaTime;
-                return true;
-            }
-            return false;
-        }
-};
+    accumulator += passed_time.count();
+}
 
+bool TimeManager::physicsTime()
+{
+    if(accumulator > fixedDeltaTime)
+    {
+        accumulator-=fixedDeltaTime;
+        return true;
+    }
+    return false;
+}
 
+// Free function implementations
 bool areColliding(const RigidBody& body1, const RigidBody& body2) {
     float dx = body1.position[0] - body2.position[0];
     float dy = body1.position[1] - body2.position[1];
@@ -111,33 +88,4 @@ void runPhysics(RigidBody& body1, RigidBody& body2, const TimeManager& TIME)
     std::cout<<"Body 1 Velocity: "<<body1.velocity[0]<<", "<<body1.velocity[1]<<std::endl;
     std::cout<<"Body 2 Position: "<<body2.position[0]<<", "<<body2.position[1]<<std::endl;
     std::cout<<"Body 2 Velocity: "<<body2.velocity[0]<<", "<<body2.velocity[1]<<std::endl;
-}
-
-int main() {
-    RigidBody body1;
-    RigidBody body2;
-    TimeManager TIME;
-
-    body1.radius = 1.0f;
-    body1.mass = 1.0f;
-    body1.position = {0.0f, 0.0f};
-    body1.velocity = {0.0f, 0.0f};
-    body1.acceleration = {0.0f, 0.0f};
-    body1.force = {0.0f, 0.0f};
-
-    body2.radius = 1.0f;
-    body2.mass = 2.0f;
-    body2.position = {21.0f, 21.0f};
-    body2.velocity = {-1.0f, -1.0f};
-    body2.acceleration = {0.0f, 0.0f};
-
-    while (true)
-    {
-        TIME.tick();
-
-        while(TIME.physicsTime())
-        {
-            runPhysics(body1, body2, TIME);
-        }
-    }
 }
