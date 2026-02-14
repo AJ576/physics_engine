@@ -13,7 +13,7 @@ public:
     ~Graphics(); // Destructor to clean up memory
 
     void clear();
-    void drawCircle(const RigidBody& body, std::array<int, 4>& color);
+    void drawCircle(const RigidBody& body, const std::array<int, 4>& color);
     void present();
     bool processEvents(); // Handles things like clicking "X" to close
 

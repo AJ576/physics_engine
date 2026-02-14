@@ -24,7 +24,7 @@ void Graphics::clear() {
     SDL_RenderClear(renderer);
 }
 
-void Graphics::drawCircle(const RigidBody& body, std::array<int, 4>& color) {
+void Graphics::drawCircle(const RigidBody& body, const std::array<int, 4>& color) {
     SDL_SetRenderDrawColor(renderer, color[0], color[1], color[2], color[3]); // White ball
     
     // Midpoint Circle Algorithm (Drawing pixel by pixel)
