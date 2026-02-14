@@ -96,10 +96,23 @@ void calculateForce(RigidBody& body1, RigidBody& body2) {
         body2.force[1] = -springConstant * (body2.position[1] - body1.position[1]);
     }
 }
-void runPhysics()
+
+void runPhysics(RigidBody& body1, RigidBody& body2, const TimeManager& TIME)
 {
-    std::cout<<"hello_world";
+    // Checking if colliding
+    // If colliding, calculate the force between the two bodies.
+    if (areColliding(body1, body2)) {
+        calculateForce(body1, body2);
+    }
+    body1.numericalIntegration(TIME.fixedDeltaTime); // Update the position and velocity of the first body.
+    body2.numericalIntegration(TIME.fixedDeltaTime); // Update the position and velocity of the second body.
+    // print the position and velocity of the two bodies.
+    std::cout<<"Body 1 Position: "<<body1.position[0]<<", "<<body1.position[1]<<std::endl;
+    std::cout<<"Body 1 Velocity: "<<body1.velocity[0]<<", "<<body1.velocity[1]<<std::endl;
+    std::cout<<"Body 2 Position: "<<body2.position[0]<<", "<<body2.position[1]<<std::endl;
+    std::cout<<"Body 2 Velocity: "<<body2.velocity[0]<<", "<<body2.velocity[1]<<std::endl;
 }
+
 int main() {
     RigidBody body1;
     RigidBody body2;
@@ -124,7 +137,7 @@ int main() {
 
         while(TIME.physicsTime())
         {
-            runPhysics();
+            runPhysics(body1, body2, TIME);
         }
     }
 }
