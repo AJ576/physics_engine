@@ -71,7 +71,6 @@ void calculateForce(RigidBody& body1, RigidBody& body2) {
         body1.force[1] = springConstant * (body1.position[1] - body2.position[1]);
         body2.force[0] = springConstant * (body2.position[0] - body1.position[0]);
         body2.force[1] = springConstant * (body2.position[1] - body1.position[1]);
-<<<<<<< HEAD
     
 }
 
@@ -117,8 +116,6 @@ void resolveCollision( RigidBody& b1, RigidBody& b2)
         b1.position[1] -= separationY;
         b2.position[0] += separationX;
         b2.position[1] += separationY;
-=======
->>>>>>> de41ff51c28ebbfeed517983f94e5b2e3a4aa5a2
     }
 }
 
