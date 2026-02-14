@@ -67,10 +67,10 @@ void calculateForce(RigidBody& body1, RigidBody& body2) {
         // F = -k * (x - x0)
         // Where k is the spring constant and x0 is the equilibrium position.
         // We are not using a spring constant, so we need to calculate the new force based on the new position and velocity.
-        body1.force[0] = -springConstant * (body1.position[0] - body2.position[0]);
-        body1.force[1] = -springConstant * (body1.position[1] - body2.position[1]);
-        body2.force[0] = -springConstant * (body2.position[0] - body1.position[0]);
-        body2.force[1] = -springConstant * (body2.position[1] - body1.position[1]);
+        body1.force[0] = springConstant * (body1.position[0] - body2.position[0]);
+        body1.force[1] = springConstant * (body1.position[1] - body2.position[1]);
+        body2.force[0] = springConstant * (body2.position[0] - body1.position[0]);
+        body2.force[1] = springConstant * (body2.position[1] - body1.position[1]);
     }
 }
 
