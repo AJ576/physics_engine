@@ -21,7 +21,7 @@ int main()
     body1.force = {0.0f, 0.0f};
 
     body2.radius = 15.0f;  // Larger radius
-    body2.mass = 5.0f;
+    body2.mass = 1.0f;
     body2.position = {300.0f, 300.0f};
     body2.velocity = {-30.0f, -30.0f};
     body2.acceleration = {0.0f, 0.0f};
