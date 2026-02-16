@@ -2,6 +2,7 @@
 #include <iostream>
 
 float springConstant = 100.0f; // N/m - initialized with default value
+float e = 1; //coefficent of restitution should be 1 for perfectly elastic collision
 
 // RigidBody constructor
 RigidBody::RigidBody(float radius, float mass, 
@@ -97,6 +98,9 @@ void calculateImpulse(RigidBody&body1, RigidBody& body2)
     auto pos1 = body1.getPosition();
     auto pos2 = body2.getPosition();
 
+    auto vel1 = body1.getVelocity();
+    auto vel2 = body2.getVelocity();
+
     //find the collision vector between the 2
     float dx = pos2[0] - pos1[0];
     float dy = pos2[1] - pos1[1];
@@ -104,11 +108,51 @@ void calculateImpulse(RigidBody&body1, RigidBody& body2)
     //normalize it
     float distance = sqrt(dx*dx + dy*dy); // find distance between the 2 so we can nromalize
     
+    if (distance == 0)
+    {
+        return;
+    }
+
     float nx = dx/distance;
     float ny = dy/distance;
 
     //now find velocity relative to each other
-    //TODO: NEED TO FUCKING FINISH WRITING THIS TOMMROW
+    auto v_rel_x = vel2[0] - vel1[0];
+    auto v_rel_y = vel2[1] - vel1[1];
+
+    //find the nomral by doing a dot product
+    float v_rel_normal = (v_rel_x * nx) + (v_rel_y * ny);
+
+    //if they are already seperating or sliding no need to apply an oppsite impulse over and over.
+    if (v_rel_normal >= 0)
+    {
+        return;
+    }
+
+    //calculate impuse by formula
+    //      −(1 + e) * v_rel_normal
+    //j = --------------------------------
+    //      (1/m1 + 1/m2)
+
+    float numerator = -1 * (1 + e) * v_rel_normal;
+    float invMassSum = body1.getInvMass() + body2.getInvMass();
+
+    //if both inv masses are 0 its imovable vs imovable. this means sim broke, 
+    //no need to break it more with calculations
+    if (invMassSum == 0)
+    {
+        return;
+    }
+
+    float j = numerator/invMassSum; //impulse
+
+    //now calculate new velcoties and set them
+    body1.setVelocityX(vel1[0] - ((j * body1.getInvMass()) * nx));
+    body1.setVelocityY(vel1[1] - ((j * body1.getInvMass()) * ny));
+
+    body2.setVelocityX(vel2[0] + ((j * body2.getInvMass()) * nx));
+    body2.setVelocityY(vel2[1] + ((j * body2.getInvMass()) * ny));
+    
 }
 
 void resolveCollision( RigidBody& b1, RigidBody& b2)
@@ -205,7 +249,8 @@ void runPhysics(RigidBody& body1, RigidBody& body2, const TimeManager& TIME)
     borderCheck(body2,border);
     if (areColliding(body1, body2)) {
         resolveCollision(body1, body2);
-        calculateForce(body1, body2);
+        // calculateForce(body1, body2);
+        calculateImpulse(body1,body2);
 
         // std::array<float, 2> pos1 = body1.getPosition();
         // std::array<float, 2> vel1 = body1.getVelocity();

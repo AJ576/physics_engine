@@ -10,8 +10,8 @@ int main()
     Graphics graphics(800, 600);
 
     // Create rigid bodies using constructor
-    RigidBody body1(20.0f, 2.0f, {100.0f, 100.0f}, {10.0f, 10.0f});
-    RigidBody body2(20.0f, 2.0f, {300.0f, 300.0f}, {-10.0f, -10.0f});
+    RigidBody body1(20.0f, 2.0f, {100.0f, 100.0f}, {100.0f, 100.0f});
+    RigidBody body2(20.0f, 2.0f, {300.0f, 300.0f}, {-100.0f, -100.0f});
     TimeManager TIME;
 
     bool running = true;
