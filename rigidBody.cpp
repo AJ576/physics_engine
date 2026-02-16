@@ -125,10 +125,30 @@ void resolveCollision( RigidBody& b1, RigidBody& b2)
     }
 }
 
+void borderCheck(RigidBody& body1, std::array<float, 2> border) {
+    float radius = body1.radius; 
+
+    for (int i = 0; i < 2; ++i) {
+        // Lower bound (0 + radius)
+        if (body1.position[i] < radius) {
+            body1.position[i] = radius; 
+            body1.velocity[i] *= -1;
+        }
+        // Upper bound (border - radius)
+        else if (body1.position[i] > border[i] - radius) {
+            body1.position[i] = border[i] - radius;
+            body1.velocity[i] *= -1;
+        }
+    }
+}
+
 void runPhysics(RigidBody& body1, RigidBody& body2, const TimeManager& TIME)
 {
     // Checking if colliding
     // If colliding, calculate the force between the two bodies.
+    std::array<float, 2> border = {800, 600};
+    borderCheck(body1,border);
+    borderCheck(body2,border);
     if (areColliding(body1, body2)) {
         resolveCollision(body1, body2);
         calculateForce(body1, body2);
@@ -142,3 +162,4 @@ void runPhysics(RigidBody& body1, RigidBody& body2, const TimeManager& TIME)
     //print the position and velocity of the two bodies.
     
 }
+

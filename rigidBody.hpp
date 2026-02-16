@@ -39,5 +39,6 @@ bool areColliding(const RigidBody& body1, const RigidBody& body2);
 void resolveCollision(const RigidBody b1, const RigidBody& b2);
 void calculateForce(RigidBody& body1, RigidBody& body2);
 void runPhysics(RigidBody& body1, RigidBody& body2, const TimeManager& TIME);
+void borderCheck(RigidBody& body1,std::array <float,2> border);
 
 #endif // RIGIDBODY_HPP

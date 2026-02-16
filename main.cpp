@@ -14,16 +14,16 @@ int main()
     TimeManager TIME;
 
     body1.radius = 10.0f;  // Increased for visibility
-    body1.mass = 1.0f;
+    body1.mass = 2.0f;
     body1.position = {100.0f, 100.0f};  // Starting position in pixels
-    body1.velocity = {30.0f, 30.0f};
+    body1.velocity = {130.0f, 130.0f};
     body1.acceleration = {0.0f, 0.0f};
     body1.force = {0.0f, 0.0f};
 
     body2.radius = 15.0f;  // Larger radius
     body2.mass = 1.0f;
     body2.position = {300.0f, 300.0f};
-    body2.velocity = {-30.0f, -30.0f};
+    body2.velocity = {-130.0f, -130.0f};
     body2.acceleration = {0.0f, 0.0f};
     body2.force = {0.0f, 0.0f};
 
@@ -80,8 +80,7 @@ int main()
         // Present the frame
         graphics.present();
 
-        // Small delay to control frame rate
-        SDL_Delay(16);  // ~60 FPS
+
     }
 
     return 0;
