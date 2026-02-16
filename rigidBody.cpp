@@ -61,7 +61,7 @@ void TimeManager::tick()
 
 bool TimeManager::physicsTime()
 {
-    if(accumulator > fixedDeltaTime)
+    if(accumulator >= fixedDeltaTime)
     {
         accumulator-=fixedDeltaTime;
         return true;

@@ -62,7 +62,7 @@ class TimeManager {
         TimePoint last_time;
     
     public:
-        const double fixedDeltaTime = 1.0/60.0; //60HZ
+        const double fixedDeltaTime = 1.0/120.0; //60HZ
 
         TimeManager();
         void tick();
