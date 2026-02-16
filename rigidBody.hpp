@@ -14,15 +14,21 @@ class RigidBody {
     private:
         float radius_; // m
         float mass_; // kg
+        float invMass_; // 1/kg (inverse mass for physics calculations)
         std::array<float, 2> position_; // m
         std::array<float, 2> velocity_; // m/s
         std::array<float, 2> acceleration_; // m/s^2
         std::array<float, 2> force_; // N
 
     public:
+        // Constructor
+        RigidBody(float radius = 1.0f, float mass = 1.0f, 
+                  std::array<float, 2> position = {0.0f, 0.0f},
+                  std::array<float, 2> velocity = {0.0f, 0.0f});
         // Getters
         float getRadius() const { return radius_; }
         float getMass() const { return mass_; }
+        float getInvMass() const { return invMass_; }
         std::array<float, 2> getPosition() const { return position_; }
         std::array<float, 2> getVelocity() const { return velocity_; }
         std::array<float, 2> getAcceleration() const { return acceleration_; }
@@ -30,7 +36,10 @@ class RigidBody {
 
         // Setters
         void setRadius(float radius) { radius_ = radius; }
-        void setMass(float mass) { mass_ = mass; }
+        void setMass(float mass) { 
+            mass_ = mass; 
+            invMass_ = (mass > 0.0f) ? (1.0f / mass) : 0.0f;
+        }
         void setPosition(const std::array<float, 2>& position) { position_ = position; }
         void setVelocity(const std::array<float, 2>& velocity) { velocity_ = velocity; }
         void setAcceleration(const std::array<float, 2>& acceleration) { acceleration_ = acceleration; }

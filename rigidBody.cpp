@@ -3,9 +3,22 @@
 
 float springConstant = 100.0f; // N/m - initialized with default value
 
+// RigidBody constructor
+RigidBody::RigidBody(float radius, float mass, 
+                     std::array<float, 2> position,
+                     std::array<float, 2> velocity)
+    : radius_(radius), position_(position), velocity_(velocity)
+{
+    // Initialize mass and calculate inverse mass
+    mass_ = mass;
+    invMass_ = (mass > 0.0f) ? (1.0f / mass) : 0.0f;
+    
+    // Initialize other members
+    acceleration_ = {0.0f, 0.0f};
+    force_ = {0.0f, 0.0f};
+}
+
 // RigidBody method implementation
-
-
 void RigidBody::numericalIntegration(float dt) {
     if (mass_ == 0.0f) return;
 
@@ -156,7 +169,7 @@ void runPhysics(RigidBody& body1, RigidBody& body2, const TimeManager& TIME)
     if (areColliding(body1, body2)) {
         resolveCollision(body1, body2);
         calculateForce(body1, body2);
-        
+
         // std::array<float, 2> pos1 = body1.getPosition();
         // std::array<float, 2> vel1 = body1.getVelocity();
         // std::array<float, 2> pos2 = body2.getPosition();

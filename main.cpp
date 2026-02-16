@@ -9,23 +9,10 @@ int main()
     
     Graphics graphics(800, 600);
 
-    RigidBody body1;
-    RigidBody body2;
+    // Create rigid bodies using constructor
+    RigidBody body1(20.0f, 2.0f, {100.0f, 100.0f}, {10.0f, 10.0f});
+    RigidBody body2(20.0f, 2.0f, {300.0f, 300.0f}, {-10.0f, -10.0f});
     TimeManager TIME;
-
-    body1.setRadius(20.0f);  
-    body1.setMass(2.0f);
-    body1.setPosition({100.0f, 100.0f});  
-    body1.setVelocity({10.0f, 10.0f});
-    body1.setAcceleration({0.0f, 0.0f});
-    body1.setForce({0.0f, 0.0f});
-
-    body2.setRadius(20.0f);  
-    body2.setMass(2.0f);
-    body2.setPosition({300.0f, 300.0f});
-    body2.setVelocity({-10.0f, -10.0f});
-    body2.setAcceleration({0.0f, 0.0f});
-    body2.setForce({0.0f, 0.0f});
 
     bool running = true;
     SDL_Event event;
