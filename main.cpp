@@ -10,8 +10,8 @@ int main()
     Graphics graphics(800, 600);
 
     // Create rigid bodies using constructor
-    RigidBody body1(20.0f, 2.0f, {100.0f, 100.0f}, {100.0f, 100.0f});
-    RigidBody body2(20.0f, 2.0f, {300.0f, 300.0f}, {-100.0f, -100.0f});
+    RigidBody body1(20.0, 2.0, {100.0, 100.0}, {100.0, 100.0});
+    RigidBody body2(10.0, 5.0, {300.0, 300.0}, {200.0, 20.0});
     TimeManager TIME;
 
     bool running = true;
@@ -48,21 +48,21 @@ int main()
         graphics.drawCircle(body2, blue);
 
         // 1. Calculate Momentum (p = mv)
-        std::array<float, 2> vel1 = body1.getVelocity();
-        std::array<float, 2> vel2 = body2.getVelocity();
-        float p1x = body1.getMass() * vel1[0];
-        float p1y = body1.getMass() * vel1[1];
-        float p2x = body2.getMass() * vel2[0];
-        float p2y = body2.getMass() * vel2[1];
+        std::array<double, 2> vel1 = body1.getVelocity();
+        std::array<double, 2> vel2 = body2.getVelocity();
+        double p1x = body1.getMass() * vel1[0];
+        double p1y = body1.getMass() * vel1[1];
+        double p2x = body2.getMass() * vel2[0];
+        double p2y = body2.getMass() * vel2[1];
 
         // 2. Calculate Kinetic Energy (KE = 0.5 * m * v^2)
      
-        float ke1 = 0.5f * body1.getMass() * (vel1[0] * vel1[0] + vel1[1] * vel1[1]);
-        float ke2 = 0.5f * body2.getMass() * (vel2[0] * vel2[0] + vel2[1] * vel2[1]);
+        double ke1 = 0.5 * body1.getMass() * (vel1[0] * vel1[0] + vel1[1] * vel1[1]);
+        double ke2 = 0.5 * body2.getMass() * (vel2[0] * vel2[0] + vel2[1] * vel2[1]);
 
-        float totalPX = p1x + p2x;
-        float totalPY = p1y + p2y;
-        float totalKE = ke1 + ke2;
+        double totalPX = p1x + p2x;
+        double totalPY = p1y + p2y;
+        double totalKE = ke1 + ke2;
 
         std::array<int, 4> white = {255, 255, 255, 255};
         char buf[256];
