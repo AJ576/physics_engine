@@ -11,13 +11,38 @@ using Duration = std::chrono::duration<double>;
 extern float springConstant; // N/m
 
 class RigidBody {
+    private:
+        float radius_; // m
+        float mass_; // kg
+        std::array<float, 2> position_; // m
+        std::array<float, 2> velocity_; // m/s
+        std::array<float, 2> acceleration_; // m/s^2
+        std::array<float, 2> force_; // N
+
     public:
-        float radius; // m
-        float mass; // kg
-        std::array<float, 2> position; // m
-        std::array<float, 2> velocity; // m/s
-        std::array<float, 2> acceleration; // m/s^2
-        std::array<float, 2> force; // N
+        // Getters
+        float getRadius() const { return radius_; }
+        float getMass() const { return mass_; }
+        std::array<float, 2> getPosition() const { return position_; }
+        std::array<float, 2> getVelocity() const { return velocity_; }
+        std::array<float, 2> getAcceleration() const { return acceleration_; }
+        std::array<float, 2> getForce() const { return force_; }
+
+        // Setters
+        void setRadius(float radius) { radius_ = radius; }
+        void setMass(float mass) { mass_ = mass; }
+        void setPosition(const std::array<float, 2>& position) { position_ = position; }
+        void setVelocity(const std::array<float, 2>& velocity) { velocity_ = velocity; }
+        void setAcceleration(const std::array<float, 2>& acceleration) { acceleration_ = acceleration; }
+        void setForce(const std::array<float, 2>& force) { force_ = force; }
+
+        // Individual component setters cuz we lazy
+        void setPositionX(float x) { position_[0] = x; }
+        void setPositionY(float y) { position_[1] = y; }
+        void setVelocityX(float vx) { velocity_[0] = vx; }
+        void setVelocityY(float vy) { velocity_[1] = vy; }
+        void setForceX(float fx) { force_[0] = fx; }
+        void setForceY(float fy) { force_[1] = fy; }
 
         void numericalIntegration(float dt);
 };

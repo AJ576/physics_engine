@@ -43,13 +43,16 @@ void Graphics::clear() {
 void Graphics::drawCircle(const RigidBody& body, const std::array<int, 4>& color) {
     SDL_SetRenderDrawColor(renderer, color[0], color[1], color[2], color[3]); // White ball
     
+    float radius = body.getRadius();
+    std::array<float, 2> position = body.getPosition();
+    
     // Midpoint Circle Algorithm (Drawing pixel by pixel)
-    for (int w = -body.radius; w < body.radius; w++) {
-        for (int h = -body.radius; h < body.radius; h++) {
-            if (w*w + h*h <= body.radius * body.radius) {
+    for (int w = -radius; w < radius; w++) {
+        for (int h = -radius; h < radius; h++) {
+            if (w*w + h*h <= radius * radius) {
                 // Flip Y coordinate so (0,0) is at the bottom
-                int screenX = (int)body.position[0] + w;
-                int screenY = windowHeight - ((int)body.position[1] + h);
+                int screenX = (int)position[0] + w;
+                int screenY = windowHeight - ((int)position[1] + h);
                 SDL_RenderDrawPoint(renderer, screenX, screenY);
             }
         }

@@ -4,28 +4,30 @@
 float springConstant = 100.0f; // N/m - initialized with default value
 
 // RigidBody method implementation
+
+
 void RigidBody::numericalIntegration(float dt) {
-    if (mass == 0.0f) return;
+    if (mass_ == 0.0f) return;
 
     // Numerical Integration. 
     // We are using Semi-Implicit Euler Method for integration. So, we need to update the velocity first and then the position.
     // This is because the velocity is dependent on the acceleration, and the position is dependent on the velocity.
 
     // Acceleration
-    acceleration[0] = force[0] / mass;
-    acceleration[1] = force[1] / mass;
+    acceleration_[0] = force_[0] / mass_;
+    acceleration_[1] = force_[1] / mass_;
 
     // Velocity
-    velocity[0] += acceleration[0] * dt;
-    velocity[1] += acceleration[1] * dt;
+    velocity_[0] += acceleration_[0] * dt;
+    velocity_[1] += acceleration_[1] * dt;
     
     // Position
-    position[0] += velocity[0] * dt;
-    position[1] += velocity[1] * dt;
+    position_[0] += velocity_[0] * dt;
+    position_[1] += velocity_[1] * dt;
 
     // Reset force
-    force[0] = 0.0f;
-    force[1] = 0.0f;
+    force_[0] = 0.0f;
+    force_[1] = 0.0f;
 }
 
 // TimeManager method implementations
@@ -54,30 +56,26 @@ bool TimeManager::physicsTime()
 
 // Free function implementations
 bool areColliding(const RigidBody& body1, const RigidBody& body2) {
-    float dx = body1.position[0] - body2.position[0];
-    float dy = body1.position[1] - body2.position[1];
+    std::array<float, 2> pos1 = body1.getPosition();
+    std::array<float, 2> pos2 = body2.getPosition();
+    float dx = pos1[0] - pos2[0];
+    float dy = pos1[1] - pos2[1];
     float distSq = dx * dx + dy * dy;
-    float rSum = body1.radius + body2.radius;
+    float rSum = body1.getRadius() + body2.getRadius();
     return distSq < rSum * rSum;
 }
 
 void calculateForce(RigidBody& body1, RigidBody& body2) {
+    // Hooke's Law for Elastic Collision
+    // F = -k * (x - x0)
+    // Where k is the spring constant and x0 is the equilibrium position.
+    std::array<float, 2> pos1 = body1.getPosition();
+    std::array<float, 2> pos2 = body2.getPosition();
     
-        // Hooke's Law for Elastic Collision
-        // F = -k * (x - x0)
-        // Where k is the spring constant and x0 is the equilibrium position.
-        // We are not using a spring constant, so we need to calculate the new force based on the new position and velocity.
-        // if (areColliding(body1, body2)){
-        //     body1.force[0] = springConstant * (body1.position[0] - body2.position[0]);
-        // body1.force[1] = springConstant * (body1.position[1] - body2.position[1]);
-        // body2.force[0] = springConstant * (body2.position[0] - body1.position[0]);
-        // body2.force[1] = springConstant * (body2.position[1] - body1.position[1]);
-        // }
-        body1.force[0] = springConstant * (body1.position[0] - body2.position[0]);
-        body1.force[1] = springConstant * (body1.position[1] - body2.position[1]);
-        body2.force[0] = springConstant * (body2.position[0] - body1.position[0]);
-        body2.force[1] = springConstant * (body2.position[1] - body1.position[1]);
-    
+    body1.setForceX(springConstant * (pos1[0] - pos2[0]));
+    body1.setForceY(springConstant * (pos1[1] - pos2[1]));
+    body2.setForceX(springConstant * (pos2[0] - pos1[0]));
+    body2.setForceY(springConstant * (pos2[1] - pos1[1]));
 }
 
 
@@ -85,12 +83,14 @@ void resolveCollision( RigidBody& b1, RigidBody& b2)
 {
     //get vector between the 2 centers.
     //NOTE this is an arrow pointing from b1 to b2
-    float dx = b2.position[0] - b1.position[0];
-    float dy = b2.position[1] - b1.position[1];
+    std::array<float, 2> pos1 = b1.getPosition();
+    std::array<float, 2> pos2 = b2.getPosition();
+    float dx = pos2[0] - pos1[0];
+    float dy = pos2[1] - pos1[1];
 
     //now get distance that currently is AND  min Distance that is legal
     float distance = sqrt(dx*dx + dy*dy);
-    float minDistance = b1.radius + b2.radius;
+    float minDistance = b1.getRadius() + b2.getRadius();
 
     //if phasing
     if (distance < minDistance) {
@@ -108,7 +108,6 @@ void resolveCollision( RigidBody& b1, RigidBody& b2)
             ny = dy / distance;
         }
        
-
         // calculate the overlap
         float overlap = minDistance - distance;
 
@@ -118,28 +117,33 @@ void resolveCollision( RigidBody& b1, RigidBody& b2)
         float separationX = nx * overlap * percent;
         float separationY = ny * overlap * percent;
 
-        b1.position[0] -= separationX;
-        b1.position[1] -= separationY;
-        b2.position[0] += separationX;
-        b2.position[1] += separationY;
+        b1.setPositionX(pos1[0] - separationX);
+        b1.setPositionY(pos1[1] - separationY);
+        b2.setPositionX(pos2[0] + separationX);
+        b2.setPositionY(pos2[1] + separationY);
     }
 }
 
 void borderCheck(RigidBody& body1, std::array<float, 2> border) {
-    float radius = body1.radius; 
+    float radius = body1.getRadius();
+    std::array<float, 2> pos = body1.getPosition();
+    std::array<float, 2> vel = body1.getVelocity();
 
     for (int i = 0; i < 2; ++i) {
         // Lower bound (0 + radius)
-        if (body1.position[i] < radius) {
-            body1.position[i] = radius; 
-            body1.velocity[i] *= -1;
+        if (pos[i] < radius) {
+            pos[i] = radius; 
+            vel[i] *= -1;
         }
         // Upper bound (border - radius)
-        else if (body1.position[i] > border[i] - radius) {
-            body1.position[i] = border[i] - radius;
-            body1.velocity[i] *= -1;
+        else if (pos[i] > border[i] - radius) {
+            pos[i] = border[i] - radius;
+            vel[i] *= -1;
         }
     }
+    
+    body1.setPosition(pos);
+    body1.setVelocity(vel);
 }
 
 void runPhysics(RigidBody& body1, RigidBody& body2, const TimeManager& TIME)
@@ -152,14 +156,19 @@ void runPhysics(RigidBody& body1, RigidBody& body2, const TimeManager& TIME)
     if (areColliding(body1, body2)) {
         resolveCollision(body1, body2);
         calculateForce(body1, body2);
-        std::cout<<"Body 1 Position: "<<body1.position[0]<<", "<<body1.position[1]<<std::endl;
-        std::cout<<"Body 1 Velocity: "<<body1.velocity[0]<<", "<<body1.velocity[1]<<std::endl;
-        std::cout<<"Body 2 Position: "<<body2.position[0]<<", "<<body2.position[1]<<std::endl;
-        std::cout<<"Body 2 Velocity: "<<body2.velocity[0]<<", "<<body2.velocity[1]<<std::endl;
+        
+        // std::array<float, 2> pos1 = body1.getPosition();
+        // std::array<float, 2> vel1 = body1.getVelocity();
+        // std::array<float, 2> pos2 = body2.getPosition();
+        // std::array<float, 2> vel2 = body2.getVelocity();
+        // std::cout<<"Body 1 Position: "<<pos1[0]<<", "<<pos1[1]<<std::endl;
+        // std::cout<<"Body 1 Velocity: "<<vel1[0]<<", "<<vel1[1]<<std::endl;
+        // std::cout<<"Body 2 Position: "<<pos2[0]<<", "<<pos2[1]<<std::endl;
+        // std::cout<<"Body 2 Velocity: "<<vel2[0]<<", "<<vel2[1]<<std::endl;
     }
     body1.numericalIntegration(TIME.fixedDeltaTime); // Update the position and velocity of the first body.
     body2.numericalIntegration(TIME.fixedDeltaTime); // Update the position and velocity of the second body.
-    //print the position and velocity of the two bodies.
+
     
 }
 
