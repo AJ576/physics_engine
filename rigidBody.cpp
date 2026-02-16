@@ -26,9 +26,10 @@ void RigidBody::numericalIntegration(float dt) {
     // We are using Semi-Implicit Euler Method for integration. So, we need to update the velocity first and then the position.
     // This is because the velocity is dependent on the acceleration, and the position is dependent on the velocity.
 
-    // Acceleration
-    acceleration_[0] = force_[0] / mass_;
-    acceleration_[1] = force_[1] / mass_;
+    // Acceleration. Now uses inverse mass. 
+    //multiplication is faster than division and usally more accurate. OPTIMIZATIONS!
+    acceleration_[0] = force_[0] * invMass_;
+    acceleration_[1] = force_[1] * invMass_;
 
     // Velocity
     velocity_[0] += acceleration_[0] * dt;
@@ -91,11 +92,30 @@ void calculateForce(RigidBody& body1, RigidBody& body2) {
     body2.setForceY(springConstant * (pos2[1] - pos1[1]));
 }
 
+void calculateImpulse(RigidBody&body1, RigidBody& body2)
+{
+    auto pos1 = body1.getPosition();
+    auto pos2 = body2.getPosition();
+
+    //find the collision vector between the 2
+    float dx = pos2[0] - pos1[0];
+    float dy = pos2[1] - pos1[1];
+
+    //normalize it
+    float distance = sqrt(dx*dx + dy*dy); // find distance between the 2 so we can nromalize
+    
+    float nx = dx/distance;
+    float ny = dy/distance;
+
+    //now find velocity relative to each other
+    //TODO: NEED TO FUCKING FINISH WRITING THIS TOMMROW
+}
 
 void resolveCollision( RigidBody& b1, RigidBody& b2)
 {
     //get vector between the 2 centers.
     //NOTE this is an arrow pointing from b1 to b2
+    //so in the final calc we subtract from b1 and add to b2 along the normal.
     std::array<float, 2> pos1 = b1.getPosition();
     std::array<float, 2> pos2 = b2.getPosition();
     float dx = pos2[0] - pos1[0];
@@ -124,16 +144,33 @@ void resolveCollision( RigidBody& b1, RigidBody& b2)
         // calculate the overlap
         float overlap = minDistance - distance;
 
-        // move them along the normal to separate them
-        //  move each by half the overlap so they meet in the middle
-        float percent = 0.5f; // Push them 50% each
-        float separationX = nx * overlap * percent;
-        float separationY = ny * overlap * percent;
+        //find total inv mass sum
+        float invMassSum = b1.getInvMass() + b2.getInvMass();
 
-        b1.setPositionX(pos1[0] - separationX);
-        b1.setPositionY(pos1[1] - separationY);
-        b2.setPositionX(pos2[0] + separationX);
-        b2.setPositionY(pos2[1] + separationY);
+        //we cooked if this happens
+        if(invMassSum == 0)
+        {
+            return;
+        }
+
+        //now move them along the normal based on their respective masses.
+        //find out how much they move by mulaiplying the overlap to the individual InvMass/sum Invmass
+        float move1 = overlap*(b1.getInvMass()/invMassSum);
+        float move2 = overlap*(b2.getInvMass()/invMassSum);
+
+        //then find components along x and y by multiplying this to the normal
+        float dx1 = nx*move1;
+        float dx2 = nx*move2;
+
+        float dy1 = ny*move1;
+        float dy2 = ny*move2;
+
+        b1.setPositionX(pos1[0]-dx1);
+        b1.setPositionY(pos1[1]-dy1);
+
+        b2.setPositionX(pos2[0]+dx2);
+        b2.setPositionY(pos2[1]+dy2);
+
     }
 }
 
