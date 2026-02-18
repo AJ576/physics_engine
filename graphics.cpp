@@ -47,8 +47,9 @@ void Graphics::drawCircle(const RigidBody& body, const std::array<int, 4>& color
     std::array<double, 2> position = body.getPosition();
     
     // Midpoint Circle Algorithm (Drawing pixel by pixel)
-    for (int w = -radius; w < radius; w++) {
-        for (int h = -radius; h < radius; h++) {
+    int r = static_cast<int>(radius);
+    for (int w = -r; w <= r; w++) {
+        for (int h = -r; h <= r; h++) {
             if (w*w + h*h <= radius * radius) {
                 // Flip Y coordinate so (0,0) is at the bottom
                 int screenX = (int)position[0] + w;

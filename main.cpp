@@ -13,8 +13,9 @@ int main()
     // Bodies are now stored in a vector for easier management.
     std::vector<RigidBody> bodies;
 
-    bodies.push_back(RigidBody(20.0, 2.0, {100.0, 100.0}, {100.0, 100.0}));
-    bodies.push_back(RigidBody(10.0, 5.0, {300.0, 300.0}, {200.0, 20.0}));
+    // Bigger radius = heavier mass (proportional to area for 2D)
+    bodies.push_back(RigidBody(20.0, 5.0, {100.0, 100.0}, {100.0, 100.0}));
+    bodies.push_back(RigidBody(10.0, 2.0, {300.0, 300.0}, {200.0, 20.0}));
     bodies.push_back(RigidBody(15.0, 3.0, {400.0, 200.0}, {-50.0, 80.0}));  
    
     TimeManager TIME;
