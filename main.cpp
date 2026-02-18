@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <iostream>
 #include <vector>
+#include <cstdlib>
+#include <ctime>
 
 int main()
 {
@@ -13,10 +15,31 @@ int main()
     // Bodies are now stored in a vector for easier management.
     std::vector<RigidBody> bodies;
 
-    // Bigger radius = heavier mass (proportional to area for 2D)
-    bodies.push_back(RigidBody(20.0, 5.0, {100.0, 100.0}, {100.0, 100.0}));
-    bodies.push_back(RigidBody(10.0, 2.0, {300.0, 300.0}, {200.0, 20.0}));
-    bodies.push_back(RigidBody(15.0, 3.0, {400.0, 200.0}, {-50.0, 80.0}));  
+    // Seed random number generator
+    srand(time(0));
+    
+    // Number of bodies to create
+    int n = 100;
+    
+    // Generate n random bodies
+    for (int i = 0; i < n; i++) {
+        // Random mass: 10 to 100
+        double mass = 10.0 + (rand() / (double)RAND_MAX) * 90.0;
+        
+        // Random position: 0 to 600 for both x and y
+        double posX = (rand() / (double)RAND_MAX) * 600.0;
+        double posY = (rand() / (double)RAND_MAX) * 600.0;
+        
+        // Random velocity: -500 to 500 for both x and y
+        double velX = -500.0 + (rand() / (double)RAND_MAX) * 1000.0;
+        double velY = -500.0 + (rand() / (double)RAND_MAX) * 1000.0;
+        
+        // Make radius proportional to mass
+        // radius = sqrt(mass / π) * scale_factor
+        double radius = sqrt(mass / M_PI)*2;
+        
+        bodies.push_back(RigidBody(radius, mass, {posX, posY}, {velX, velY}));
+    }
    
     TimeManager TIME;
 
