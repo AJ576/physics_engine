@@ -3,6 +3,7 @@
 #pragma once // read once per programam.
 #include <array>
 #include <chrono>
+#include <vector>
 
 using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
@@ -69,11 +70,11 @@ class TimeManager {
         bool physicsTime();
 };
 
-bool areColliding(const RigidBody& body1, const RigidBody& body2);
-void resolveCollision(const RigidBody b1, const RigidBody& b2);
-void calculateForce(RigidBody& body1, RigidBody& body2);
-void calculateImpulse(RigidBody& body1, RigidBody& body2);
-void runPhysics(RigidBody& body1, RigidBody& body2, const TimeManager& TIME);
-void borderCheck(RigidBody& body1,std::array <float,2> border);
+bool areColliding(std::vector<RigidBody>& bodies);
+void resolveCollision(std::vector<RigidBody>& bodies);
+void calculateForce(std::vector<RigidBody>& bodies);
+void calculateImpulse(std::vector<RigidBody>& bodies);
+void runPhysics(std::vector<RigidBody>& bodies,const TimeManager& TIME);
+void borderCheck(std::vector<RigidBody>& bodies,std::array <float,2> border);
 
 #endif // RIGIDBODY_HPP

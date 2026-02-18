@@ -240,30 +240,23 @@ void borderCheck(RigidBody& body1, std::array<double, 2> border) {
     body1.setVelocity(vel);
 }
 
-void runPhysics(RigidBody& body1, RigidBody& body2, const TimeManager& TIME)
+void runPhysics(std::vector<RigidBody>& bodies, const TimeManager& TIME)
 {
-    // Checking if colliding
-    // If colliding, calculate the force between the two bodies.
     std::array<double, 2> border = {800.0, 600.0};
-    borderCheck(body1,border);
-    borderCheck(body2,border);
-    if (areColliding(body1, body2)) {
-        resolveCollision(body1, body2);
-        // calculateForce(body1, body2);
-        calculateImpulse(body1,body2);
-
-        // std::array<double, 2> pos1 = body1.getPosition();
-        // std::array<double, 2> vel1 = body1.getVelocity();
-        // std::array<double, 2> pos2 = body2.getPosition();
-        // std::array<double, 2> vel2 = body2.getVelocity();
-        // std::cout<<"Body 1 Position: "<<pos1[0]<<", "<<pos1[1]<<std::endl;
-        // std::cout<<"Body 1 Velocity: "<<vel1[0]<<", "<<vel1[1]<<std::endl;
-        // std::cout<<"Body 2 Position: "<<pos2[0]<<", "<<pos2[1]<<std::endl;
-        // std::cout<<"Body 2 Velocity: "<<vel2[0]<<", "<<vel2[1]<<std::endl;
+    for (size_t i = 0; i < bodies.size(); i++) {
+        borderCheck(bodies[i],border);
     }
-    body1.numericalIntegration(TIME.fixedDeltaTime); // Update the position and velocity of the first body.
-    body2.numericalIntegration(TIME.fixedDeltaTime); // Update the position and velocity of the second body.
-
-    
+    for (size_t i = 0; i < bodies.size(); i++) {
+        for (size_t j = i+1; j < bodies.size(); j++) {
+            if (areColliding(bodies[i], bodies[j])) {
+                resolveCollision(bodies[i], bodies[j]);
+                calculateForce(bodies[i], bodies[j]);
+                calculateImpulse(bodies[i], bodies[j]);
+            }
+        }
+    }
+    for (size_t i = 0; i < bodies.size(); i++) {
+        bodies[i].numericalIntegration(TIME.fixedDeltaTime);
+    }
 }
 
