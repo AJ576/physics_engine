@@ -176,7 +176,7 @@ void resolveCollision( RigidBody& b1, RigidBody& b2)
         // use distance to make sure the vector length is 1.0
         if (distance == 0)
         {
-            nx = 0.001;
+            nx = 1;
             ny = 0.0;
         }
         else
@@ -243,20 +243,27 @@ void borderCheck(RigidBody& body1, std::array<double, 2> border) {
 void runPhysics(std::vector<RigidBody>& bodies, const TimeManager& TIME)
 {
     std::array<double, 2> border = {800.0, 600.0};
+    
+    //First step numerical integration
     for (size_t i = 0; i < bodies.size(); i++) {
-        borderCheck(bodies[i],border);
+        bodies[i].numericalIntegration(TIME.fixedDeltaTime);
     }
+
+    //do this AFTER numerical integration
     for (size_t i = 0; i < bodies.size(); i++) {
         for (size_t j = i+1; j < bodies.size(); j++) {
             if (areColliding(bodies[i], bodies[j])) {
                 resolveCollision(bodies[i], bodies[j]);
-                calculateForce(bodies[i], bodies[j]);
+                //calculateForce(bodies[i], bodies[j]); //DO NOT USE CALC FORCE
                 calculateImpulse(bodies[i], bodies[j]);
             }
         }
     }
+
+
+    //Final step, border check
     for (size_t i = 0; i < bodies.size(); i++) {
-        bodies[i].numericalIntegration(TIME.fixedDeltaTime);
+        borderCheck(bodies[i],border);
     }
 }
 
