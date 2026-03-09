@@ -57,24 +57,4 @@ class RigidBody {
         void numericalIntegration(double dt);
 };
 
-class TimeManager {
-    private:
-        double accumulator = 0.0;
-        TimePoint last_time;
-    
-    public:
-        const double fixedDeltaTime = 1.0/120.0; //60HZ
-
-        TimeManager();
-        void tick();
-        bool physicsTime();
-};
-
-bool areColliding(std::vector<RigidBody>& bodies);
-void resolveCollision(std::vector<RigidBody>& bodies);
-void calculateForce(std::vector<RigidBody>& bodies);
-void calculateImpulse(std::vector<RigidBody>& bodies);
-void runPhysics(std::vector<RigidBody>& bodies,const TimeManager& TIME);
-void borderCheck(std::vector<RigidBody>& bodies,std::array <float,2> border);
-
 #endif // RIGIDBODY_HPP

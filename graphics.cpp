@@ -1,7 +1,7 @@
 #include "graphics.hpp"
 #include <iostream>
 
-Graphics::Graphics(int width, int height) : windowHeight(height) {
+Graphics::Graphics(int width, int height) : windowHeight(height), windowWidth(width) {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cout << "SDL Error: " << SDL_GetError() << std::endl;
     }
@@ -10,7 +10,7 @@ Graphics::Graphics(int width, int height) : windowHeight(height) {
     }
 
     window = SDL_CreateWindow("Physics Engine", SDL_WINDOWPOS_CENTERED, 
-                              SDL_WINDOWPOS_CENTERED, width, height, 0);
+                          SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_RESIZABLE);
     
     // The "Accelerated" flag uses your GPU to draw
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
@@ -86,4 +86,71 @@ bool Graphics::processEvents() {
         if (event.type == SDL_QUIT) return false;
     }
     return true;
+}
+
+void Graphics::updateSize(int width, int height)
+{
+    windowHeight = height;
+    windowWidth = width;
+}
+
+void Graphics::printPhysicsInfo(const std::vector<RigidBody>& bodies) {
+    if (windowWidth < 400 || windowHeight < 200) {
+        // Screen too small, don't display
+        return;
+    }
+
+    // 1. Calculate Momentum (p = mv)
+    // Calculate total momentum for each body and sum them up.
+    double totalPX = 0.0;
+    double totalPY = 0.0;
+    for (size_t i = 0; i < bodies.size(); i++) {
+        totalPX += bodies[i].getMass() * bodies[i].getVelocity()[0];
+        totalPY += bodies[i].getMass() * bodies[i].getVelocity()[1];
+    }
+
+    // 2. Calculate Kinetic Energy (KE = 0.5 * m * v^2)
+    // Calculate total kinetic energy for each body and sum them up.
+    double totalKE = 0.0;
+    for (size_t i = 0; i < bodies.size(); i++) {
+        totalKE += 0.5 * bodies[i].getMass() * (bodies[i].getVelocity()[0] * bodies[i].getVelocity()[0] + bodies[i].getVelocity()[1] * bodies[i].getVelocity()[1]);
+    }
+
+    char buf[256];
+    
+    // Calculate scale and placement relative to screen size
+    // Base resolution 800x600.
+    double scale = std::min(windowWidth / 800.0, windowHeight / 600.0);
+    int xLeft = (int)(windowWidth * 0.45); // Pushed further left from 0.5 to prevent extending off-screen
+    int yTopKE = (int)(windowHeight * 0.010); // 10 / 600 ~ 0.016
+    int yTopMo = (int)(windowHeight * 0.050); // 35 / 600 ~ 0.058
+
+    if (!font) return;
+    SDL_Color sdlColor = { 255, 255, 255, 255 };
+
+    // Display Energy
+    snprintf(buf, sizeof(buf), "Total Kinetic Energy: %.2f J", totalKE);
+    SDL_Surface* surfaceKE = TTF_RenderText_Blended(font, buf, sdlColor);
+    if (surfaceKE) {
+        SDL_Texture* textureKE = SDL_CreateTextureFromSurface(renderer, surfaceKE);
+        if (textureKE) {
+            SDL_Rect dst = { xLeft, yTopKE, (int)(surfaceKE->w * scale), (int)(surfaceKE->h * scale) };
+            SDL_RenderCopy(renderer, textureKE, nullptr, &dst);
+            SDL_DestroyTexture(textureKE);
+        }
+        SDL_FreeSurface(surfaceKE);
+    }
+
+    // Display Momentum
+    snprintf(buf, sizeof(buf), "Total Momentum: x=%.1f y=%.1f", totalPX, totalPY);
+    SDL_Surface* surfaceMo = TTF_RenderText_Blended(font, buf, sdlColor);
+    if (surfaceMo) {
+        SDL_Texture* textureMo = SDL_CreateTextureFromSurface(renderer, surfaceMo);
+        if (textureMo) {
+            SDL_Rect dst = { xLeft, yTopMo, (int)(surfaceMo->w * scale), (int)(surfaceMo->h * scale) };
+            SDL_RenderCopy(renderer, textureMo, nullptr, &dst);
+            SDL_DestroyTexture(textureMo);
+        }
+        SDL_FreeSurface(surfaceMo);
+    }
 }

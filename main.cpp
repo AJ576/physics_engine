@@ -1,4 +1,4 @@
-#include "rigidBody.hpp"
+#include "physics.hpp"
 #include "graphics.hpp"
 #include <cmath>
 #include <cstdio>
@@ -12,14 +12,14 @@ int main()
     
     Graphics graphics(800, 600);
 
-    // Bodies are now stored in a vector for easier management.
-    std::vector<RigidBody> bodies;
+    // Initialize World Physics with the border
+    WorldPhysics world({800.0, 600.0});
 
     // Seed random number generator
     srand(time(0));
     
     // Number of bodies to create
-    int n = 100;
+    int n = 10;
     
     // Generate n random bodies
     for (int i = 0; i < n; i++) {
@@ -38,7 +38,7 @@ int main()
         // radius = sqrt(mass / π) * scale_factor
         double radius = sqrt(mass / M_PI)*2;
         
-        bodies.push_back(RigidBody(radius, mass, {posX, posY}, {velX, velY}));
+        world.addBody(RigidBody(radius, mass, {posX, posY}, {velX, velY}));
     }
    
     TimeManager TIME;
@@ -56,49 +56,45 @@ int main()
             if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
                 running = false;
             }
+
+            // --- ADD THIS BLOCK FOR RESIZE ---
+            if (event.type == SDL_WINDOWEVENT) {
+                if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                    int newW = event.window.data1;
+                    int newH = event.window.data2;
+
+                    // 1. Update Physics borders so balls bounce off new walls
+                    world.setBorder({(double)newW, (double)newH});
+
+                    // 2. Update Graphics height so the "Y-flip" math stays correct
+                    graphics.updateSize(newW, newH);
+
+                    std::cout << "Resized to: " << newW << "x" << newH << std::endl;
+                }
+                TIME.reset();
+            }
         }
 
         TIME.tick();
 
         while(TIME.physicsTime())
         {
-            runPhysics(bodies, TIME);
+            world.runPhysics(TIME);
         }
 
         // Clear screen
         graphics.clear();
+
+        // Get bodies reference for rendering and calculations
+        const std::vector<RigidBody>& bodies = world.getBodies();
 
         std::vector<std::array<int, 4>> colors = {{255,0,0,255}, {0,0,255,255}, {0,255,0,255}, {255,255,0,255}};
         for (size_t i = 0; i < bodies.size(); i++) {
             graphics.drawCircle(bodies[i], colors[i%colors.size()]);
         }
 
-        // 1. Calculate Momentum (p = mv)
-        // Calculate total momentum for each body and sum them up.
-        double totalPX = 0.0;
-        double totalPY = 0.0;
-        for (size_t i = 0; i < bodies.size(); i++) {
-            totalPX += bodies[i].getMass() * bodies[i].getVelocity()[0];
-            totalPY += bodies[i].getMass() * bodies[i].getVelocity()[1];
-        }
-
-        // 2. Calculate Kinetic Energy (KE = 0.5 * m * v^2)
-        // Calculate total kinetic energy for each body and sum them up.
-        double totalKE = 0.0;
-        for (size_t i = 0; i < bodies.size(); i++) {
-            totalKE += 0.5 * bodies[i].getMass() * (bodies[i].getVelocity()[0] * bodies[i].getVelocity()[0] + bodies[i].getVelocity()[1] * bodies[i].getVelocity()[1]);
-        }
-
-        std::array<int, 4> white = {255, 255, 255, 255};
-        char buf[256];
-
-        // Display Energy 
-        snprintf(buf, sizeof(buf), "Total Kinetic Energy: %.2f J", totalKE);
-        graphics.drawText(buf, 400, 10, white);
-
-        // Display Momentum 
-        snprintf(buf, sizeof(buf), "Total Momentum: x=%.1f y=%.1f", totalPX, totalPY);
-        graphics.drawText(buf, 400, 35, white);
+        // Display informational text (Energy, Momentum, etc.)
+        graphics.printPhysicsInfo(bodies);
 
         // Present the frame
         graphics.present();
