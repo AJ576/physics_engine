@@ -27,7 +27,9 @@ class TimeManager {
 class WorldPhysics {
     private:
         std::vector<RigidBody> bodies;
-        std::array<double, 2> border_;
+        std::array<double, 2> border_;  
+        std::unordered_map<long long,std::vector<RigidBody*>> grid;
+        int grid_size = 10;
 
         bool areColliding(const RigidBody& body1, const RigidBody& body2,
                         double& nx, double& ny, double& overlap);

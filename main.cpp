@@ -19,7 +19,7 @@ int main()
     srand(time(0));
     
     // Number of bodies to create
-    int n = 1000;
+    int n = 5000;
     
     // Generate n random bodies
     for (int i = 0; i < n; i++) {

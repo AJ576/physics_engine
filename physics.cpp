@@ -222,12 +222,77 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
         bodies[i].numericalIntegration(TIME.fixedDeltaTime);
     }
 
-    //do this AFTER numerical integration
-    for (size_t i = 0; i < bodies.size(); i++) {
-        for (size_t j = i+1; j < bodies.size(); j++) {
-            resolveCollision(bodies[i], bodies[j]);
-            //calculateForce(bodies[i], bodies[j]); //DO NOT USE CALC FORCE
+    //grid collision starts here
+    //clear the grid
+    grid.clear();
+
+    //rebuild the grid
+    for (size_t i = 0; i<bodies.size(); i++)
+    {
+        //get poistion and thus the cell val
+        double x = bodies[i].getPosition()[0];
+        double y = bodies[i].getPosition()[1];
+
+        int cell_x = (int)std::floor(x / grid_size);
+        int cell_y = (int)std::floor(y / grid_size);
+
+        long long key = ((long long)cell_x << 32) | (unsigned int)cell_y;
+
+        grid[key].push_back(&bodies[i]);
+    }
+
+    // //do this AFTER numerical integration
+    // for (size_t i = 0; i < bodies.size(); i++) {
+    //     for (size_t j = i+1; j < bodies.size(); j++) {
+    //         resolveCollision(bodies[i], bodies[j]);
+    //         //calculateForce(bodies[i], bodies[j]); //DO NOT USE CALC FORCE
+    //     }
+    // }
+
+    for (auto& entry: grid)
+    {
+        long long key = entry.first;
+        std::vector<RigidBody*>& cell = entry.second;
+
+        //unpack the coords from key
+        int x = key >> 32;
+        int y = (int) (key & 0xFFFFFFFF);
+
+        //loop over all bodies inside the cell
+        for (size_t i = 0; i < cell.size();i++)
+        {
+            for(size_t j = i+1; j < cell.size(); j++)
+            {
+                resolveCollision(*cell[i],*cell[j]);
+            }
         }
+        //now the neigbors which is a bit weirder.
+        //we only chck forward and down neigbors cuz neighbors behidn us and above already checked us
+
+        int offsets[4][2] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+
+        for(auto &off : offsets)
+        {
+            int nx = x + off[0];
+            int ny = y + off[1];
+            //make key to access the cell
+            long long nkey = ((long long)nx << 32) | (unsigned int)ny;
+            //if key exists
+            auto it = grid.find(nkey);
+            if (it != grid.end())
+            {
+                auto& ncell = it->second;
+
+                for (size_t i = 0; i < cell.size();i++)
+                {
+                    for (size_t j = 0; j < ncell.size();j++)
+                    {
+                        resolveCollision(*cell[i],*ncell[j]);
+                    }
+        
+                }
+            }
+        }   
     }
 
     //Final step, border check
