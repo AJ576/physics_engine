@@ -3,9 +3,8 @@
 #include <sstream>
 #include <iomanip>
 
-Graphics::Graphics(int width, int height)
-    : windowHeight(height), windowWidth(width),
-      fps_(0.0), fpsAccumTime_(0.0), fpsFrameCount_(0), lastCounter_(0)
+Graphics::Graphics(int width, int height): 
+    windowHeight(height), windowWidth(width),fps_(0.0), fpsAccumTime_(0.0), fpsFrameCount_(0), lastCounter_(0)
 {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cout << "SDL Error: " << SDL_GetError() << std::endl;
@@ -35,6 +34,11 @@ Graphics::Graphics(int width, int height)
 }
 
 Graphics::~Graphics() {
+    for (auto& kv : circleCache_) {
+        SDL_DestroyTexture(kv.second);
+    }
+    circleCache_.clear();
+
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     if (font) TTF_CloseFont(font);
@@ -48,23 +52,20 @@ void Graphics::clear() {
 }
 
 void Graphics::drawCircle(const RigidBody& body, const std::array<int, 4>& color) {
-    SDL_SetRenderDrawColor(renderer, color[0], color[1], color[2], color[3]); // White ball
-    
-    double radius = body.getRadius();
-    std::array<double, 2> position = body.getPosition();
-    
-    // Midpoint Circle Algorithm (Drawing pixel by pixel)
-    int r = static_cast<int>(radius);
-    for (int w = -r; w <= r; w++) {
-        for (int h = -r; h <= r; h++) {
-            if (w*w + h*h <= radius * radius) {
-                // Flip Y coordinate so (0,0) is at the bottom
-                int screenX = (int)position[0] + w;
-                int screenY = windowHeight - ((int)position[1] + h);
-                SDL_RenderDrawPoint(renderer, screenX, screenY);
-            }
-        }
-    }
+    int r = std::max(1, (int)std::round(body.getRadius()));
+    SDL_Texture* tex = getCircleTexture(r);
+
+    SDL_SetTextureColorMod(tex, (Uint8)color[0], (Uint8)color[1], (Uint8)color[2]);
+    SDL_SetTextureAlphaMod(tex, (Uint8)color[3]);
+
+    auto p = body.getPosition();
+    SDL_Rect dst;
+    dst.w = r * 2;
+    dst.h = r * 2;
+    dst.x = (int)std::round(p[0]) - r;
+    dst.y = windowHeight - ((int)std::round(p[1]) + r); // keep your Y-flip convention
+
+    SDL_RenderCopy(renderer, tex, nullptr, &dst);
 }
 
 void Graphics::drawText(const std::string& text, int x, int y, const std::array<int, 4>& color) {
@@ -173,4 +174,40 @@ void Graphics::printPhysicsInfo(const std::vector<RigidBody>& bodies) {
     ss.clear();
     ss << "Total Py: " << totalPY;
     drawText(ss.str(), x, y, color);
+}
+
+SDL_Texture* Graphics::createCircleTexture(int radius) {
+    int d = radius * 2;
+    SDL_Texture* tex = SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_TARGET,
+        d, d
+    );
+    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+
+    SDL_Texture* oldTarget = SDL_GetRenderTarget(renderer);
+    SDL_SetRenderTarget(renderer, tex);
+
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+    SDL_RenderClear(renderer);
+
+    // draw filled white circle into texture
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    for (int y = -radius; y <= radius; ++y) {
+        int xSpan = (int)std::sqrt(radius * radius - y * y);
+        SDL_RenderDrawLine(renderer, radius - xSpan, radius + y, radius + xSpan, radius + y);
+    }
+
+    SDL_SetRenderTarget(renderer, oldTarget);
+    return tex;
+}
+
+SDL_Texture* Graphics::getCircleTexture(int radius) {
+    auto it = circleCache_.find(radius);
+    if (it != circleCache_.end()) return it->second;
+
+    SDL_Texture* tex = createCircleTexture(radius);
+    circleCache_[radius] = tex;
+    return tex;
 }

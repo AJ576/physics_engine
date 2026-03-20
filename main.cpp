@@ -19,7 +19,7 @@ int main()
     srand(time(0));
     
     // Number of bodies to create
-    int n = 10;
+    int n = 1000;
     
     // Generate n random bodies
     for (int i = 0; i < n; i++) {
@@ -36,7 +36,7 @@ int main()
         
         // Make radius proportional to mass
         // radius = sqrt(mass / π) * scale_factor
-        double radius = sqrt(mass / M_PI)*2;
+        double radius = sqrt(mass / M_PI);
         
         world.addBody(RigidBody(radius, mass, {posX, posY}, {velX, velY}));
     }

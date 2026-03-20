@@ -23,6 +23,10 @@ private:
     int fpsFrameCount_;
     Uint64 lastCounter_;
 
+    std::unordered_map<int, SDL_Texture*> circleCache_;
+    SDL_Texture* getCircleTexture(int radius);
+    SDL_Texture* createCircleTexture(int radius); // <- fixed case
+
 public:
     Graphics(int width, int height);
     ~Graphics();
