@@ -6,10 +6,10 @@
 #include <vector>
 #include <cstdlib>
 #include <ctime>
+#include <chrono>
 
 int main()
 {
-    
     Graphics graphics(800, 600);
 
     // Initialize World Physics with the border
@@ -98,8 +98,6 @@ int main()
 
         // Present the frame
         graphics.present();
-
-
     }
 
     return 0;

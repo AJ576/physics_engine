@@ -1,7 +1,12 @@
 #include "graphics.hpp"
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 
-Graphics::Graphics(int width, int height) : windowHeight(height), windowWidth(width) {
+Graphics::Graphics(int width, int height)
+    : windowHeight(height), windowWidth(width),
+      fps_(0.0), fpsAccumTime_(0.0), fpsFrameCount_(0), lastCounter_(0)
+{
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cout << "SDL Error: " << SDL_GetError() << std::endl;
     }
@@ -13,7 +18,7 @@ Graphics::Graphics(int width, int height) : windowHeight(height), windowWidth(wi
                           SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_RESIZABLE);
     
     // The "Accelerated" flag uses your GPU to draw
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
     font = TTF_OpenFont("/System/Library/Fonts/Supplemental/Arial.ttf", 24);
     if (!font) {
@@ -25,6 +30,8 @@ Graphics::Graphics(int width, int height) : windowHeight(height), windowWidth(wi
     if (!font) {
         std::cout << "TTF_OpenFont failed: " << TTF_GetError() << std::endl;
     }
+
+    lastCounter_ = SDL_GetPerformanceCounter();
 }
 
 Graphics::~Graphics() {
@@ -77,6 +84,23 @@ void Graphics::drawText(const std::string& text, int x, int y, const std::array<
 }
 
 void Graphics::present() {
+    // FPS update happens once per rendered frame
+    Uint64 now = SDL_GetPerformanceCounter();
+    double dt = static_cast<double>(now - lastCounter_) /
+                static_cast<double>(SDL_GetPerformanceFrequency());
+    lastCounter_ = now;
+
+    fpsFrameCount_++;
+    fpsAccumTime_ += dt;
+
+    // this basically prevents fps changes every milisec
+    // we average out fps over 0.5 to 1sec
+    if (fpsAccumTime_ >= 0.5) {
+        fps_ = static_cast<double>(fpsFrameCount_) / fpsAccumTime_;
+        fpsFrameCount_ = 0;
+        fpsAccumTime_ = 0.0;
+    }
+
     SDL_RenderPresent(renderer);
 }
 
@@ -95,62 +119,58 @@ void Graphics::updateSize(int width, int height)
 }
 
 void Graphics::printPhysicsInfo(const std::vector<RigidBody>& bodies) {
-    if (windowWidth < 400 || windowHeight < 200) {
-        // Screen too small, don't display
-        return;
-    }
+    if (!font) return;
 
-    // 1. Calculate Momentum (p = mv)
-    // Calculate total momentum for each body and sum them up.
+    // hide info text on very small windows
+    if (windowWidth < 320 || windowHeight < 240) return;
+
+    // Compute total kinetic energy and total momentum
+    double totalKE = 0.0;
     double totalPX = 0.0;
     double totalPY = 0.0;
-    for (size_t i = 0; i < bodies.size(); i++) {
-        totalPX += bodies[i].getMass() * bodies[i].getVelocity()[0];
-        totalPY += bodies[i].getMass() * bodies[i].getVelocity()[1];
+
+    for (const auto& body : bodies) {
+        const auto v = body.getVelocity();
+        const double m = body.getMass();
+
+        totalKE += 0.5 * m * (v[0] * v[0] + v[1] * v[1]);
+        totalPX += m * v[0];
+        totalPY += m * v[1];
     }
 
-    // 2. Calculate Kinetic Energy (KE = 0.5 * m * v^2)
-    // Calculate total kinetic energy for each body and sum them up.
-    double totalKE = 0.0;
-    for (size_t i = 0; i < bodies.size(); i++) {
-        totalKE += 0.5 * bodies[i].getMass() * (bodies[i].getVelocity()[0] * bodies[i].getVelocity()[0] + bodies[i].getVelocity()[1] * bodies[i].getVelocity()[1]);
-    }
+    // Relative placement
+    int x = static_cast<int>(windowWidth * 0.02);
+    int y = static_cast<int>(windowHeight * 0.02);
+    int lineStep = std::max(16, static_cast<int>(windowHeight * 0.04));
 
-    char buf[256];
-    
-    // Calculate scale and placement relative to screen size
-    // Base resolution 800x600.
-    double scale = std::min(windowWidth / 800.0, windowHeight / 600.0);
-    int xLeft = (int)(windowWidth * 0.45); // Pushed further left from 0.5 to prevent extending off-screen
-    int yTopKE = (int)(windowHeight * 0.010); // 10 / 600 ~ 0.016
-    int yTopMo = (int)(windowHeight * 0.050); // 35 / 600 ~ 0.058
+    std::array<int, 4> color = {255, 255, 255, 255};
 
-    if (!font) return;
-    SDL_Color sdlColor = { 255, 255, 255, 255 };
+    std::ostringstream ss;
+    ss << std::fixed << std::setprecision(2);
 
-    // Display Energy
-    snprintf(buf, sizeof(buf), "Total Kinetic Energy: %.2f J", totalKE);
-    SDL_Surface* surfaceKE = TTF_RenderText_Blended(font, buf, sdlColor);
-    if (surfaceKE) {
-        SDL_Texture* textureKE = SDL_CreateTextureFromSurface(renderer, surfaceKE);
-        if (textureKE) {
-            SDL_Rect dst = { xLeft, yTopKE, (int)(surfaceKE->w * scale), (int)(surfaceKE->h * scale) };
-            SDL_RenderCopy(renderer, textureKE, nullptr, &dst);
-            SDL_DestroyTexture(textureKE);
-        }
-        SDL_FreeSurface(surfaceKE);
-    }
+    // FPS
+    ss.str("");
+    ss.clear();
+    ss << "FPS: " << fps_;
+    drawText(ss.str(), x, y, color);
+    y += lineStep;
 
-    // Display Momentum
-    snprintf(buf, sizeof(buf), "Total Momentum: x=%.1f y=%.1f", totalPX, totalPY);
-    SDL_Surface* surfaceMo = TTF_RenderText_Blended(font, buf, sdlColor);
-    if (surfaceMo) {
-        SDL_Texture* textureMo = SDL_CreateTextureFromSurface(renderer, surfaceMo);
-        if (textureMo) {
-            SDL_Rect dst = { xLeft, yTopMo, (int)(surfaceMo->w * scale), (int)(surfaceMo->h * scale) };
-            SDL_RenderCopy(renderer, textureMo, nullptr, &dst);
-            SDL_DestroyTexture(textureMo);
-        }
-        SDL_FreeSurface(surfaceMo);
-    }
+    // KE
+    ss.str("");
+    ss.clear();
+    ss << "Total KE: " << totalKE;
+    drawText(ss.str(), x, y, color);
+    y += lineStep;
+
+    // Momentum
+    ss.str("");
+    ss.clear();
+    ss << "Total Px: " << totalPX;
+    drawText(ss.str(), x, y, color);
+    y += lineStep;
+
+    ss.str("");
+    ss.clear();
+    ss << "Total Py: " << totalPY;
+    drawText(ss.str(), x, y, color);
 }
