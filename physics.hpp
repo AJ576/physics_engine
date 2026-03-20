@@ -24,17 +24,17 @@ class TimeManager {
         void reset();
 };
 
-class WorldPhysics
-{
+class WorldPhysics {
     private:
         std::vector<RigidBody> bodies;
         std::array<double, 2> border_;
 
-        bool areColliding(const RigidBody& body1, const RigidBody& body2);
-        void resolveCollision(RigidBody& b1, RigidBody& b2);
+        bool areColliding(const RigidBody& body1, const RigidBody& body2,
+                        double& nx, double& ny, double& overlap);
         void calculateForce(RigidBody& body1, RigidBody& body2);
-        void calculateImpulse(RigidBody& body1, RigidBody& body2);
-        void borderCheck(RigidBody& body);
+        void calculateImpulse(RigidBody& body1, RigidBody& body2, double nx, double ny);
+        void resolveCollision(RigidBody& b1, RigidBody& b2);
+        void borderCheck(RigidBody& body1);
 
     public:
         WorldPhysics(std::array<double, 2> border);

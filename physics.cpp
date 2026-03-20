@@ -46,14 +46,40 @@ void TimeManager::reset() {
 WorldPhysics::WorldPhysics(std::array<double, 2> border) : border_(border) {}
 
 // Free function implementations -> WorldPhysics method implementations
-bool WorldPhysics::areColliding(const RigidBody& body1, const RigidBody& body2) {
+bool WorldPhysics::areColliding(const RigidBody& body1, const RigidBody& body2,
+                                double& nx, double& ny, double& overlap) {
     std::array<double, 2> pos1 = body1.getPosition();
     std::array<double, 2> pos2 = body2.getPosition();
-    double dx = pos1[0] - pos2[0];
-    double dy = pos1[1] - pos2[1];
-    double distSq = dx * dx + dy * dy;
-    double rSum = body1.getRadius() + body2.getRadius();
-    return distSq < rSum * rSum;
+
+    double dx = pos2[0] - pos1[0];
+    double dy = pos2[1] - pos1[1];
+
+    double distanceSq = dx * dx + dy * dy;
+    double minDistance = body1.getRadius() + body2.getRadius();
+    double minDistanceSq = minDistance * minDistance;
+
+    if (distanceSq >= minDistanceSq) {
+        overlap = 0.0;
+        nx = 0.0;
+        ny = 0.0;
+        return false;
+    }
+
+    double distance = std::sqrt(distanceSq);
+
+    // calculate the Normal (Unit Vector)
+    // use distance to make sure the vector length is 1.0
+    if (distance == 0.0) {
+        nx = 1.0;
+        ny = 0.0;
+        overlap = minDistance;
+    } else {
+        nx = dx / distance;
+        ny = dy / distance;
+        overlap = minDistance - distance;
+    }
+
+    return true;
 }
 
 void WorldPhysics::calculateForce(RigidBody& body1, RigidBody& body2) {
@@ -69,28 +95,10 @@ void WorldPhysics::calculateForce(RigidBody& body1, RigidBody& body2) {
     body2.setForceY(springConstant * (pos2[1] - pos1[1]));
 }
 
-void WorldPhysics::calculateImpulse(RigidBody& body1, RigidBody& body2)
+void WorldPhysics::calculateImpulse(RigidBody& body1, RigidBody& body2, double nx, double ny)
 {
-    auto pos1 = body1.getPosition();
-    auto pos2 = body2.getPosition();
-
     auto vel1 = body1.getVelocity();
     auto vel2 = body2.getVelocity();
-
-    //find the collision vector between the 2
-    double dx = pos2[0] - pos1[0];
-    double dy = pos2[1] - pos1[1];
-
-    //normalize it
-    double distance = sqrt(dx*dx + dy*dy); // find distance between the 2 so we can nromalize
-    
-    if (distance == 0)
-    {
-        return;
-    }
-
-    double nx = dx/distance;
-    double ny = dy/distance;
 
     //now find velocity relative to each other
     auto v_rel_x = vel2[0] - vel1[0];
@@ -120,7 +128,7 @@ void WorldPhysics::calculateImpulse(RigidBody& body1, RigidBody& body2)
         return;
     }
 
-    double j = numerator/invMassSum; //impulse
+    double j = numerator / invMassSum; //impulse
 
     //now calculate new velcoties and set them
     body1.setVelocityX(vel1[0] - ((j * body1.getInvMass()) * nx));
@@ -128,70 +136,49 @@ void WorldPhysics::calculateImpulse(RigidBody& body1, RigidBody& body2)
 
     body2.setVelocityX(vel2[0] + ((j * body2.getInvMass()) * nx));
     body2.setVelocityY(vel2[1] + ((j * body2.getInvMass()) * ny));
-    
 }
 
 void WorldPhysics::resolveCollision(RigidBody& b1, RigidBody& b2)
 {
-    //get vector between the 2 centers.
-    //NOTE this is an arrow pointing from b1 to b2
-    //so in the final calc we subtract from b1 and add to b2 along the normal.
+    double nx = 0.0, ny = 0.0, overlap = 0.0;
+
+    // if not colliding, return immediately
+    if (!areColliding(b1, b2, nx, ny, overlap)) {
+        return;
+    }
+
     std::array<double, 2> pos1 = b1.getPosition();
     std::array<double, 2> pos2 = b2.getPosition();
-    double dx = pos2[0] - pos1[0];
-    double dy = pos2[1] - pos1[1];
 
-    //now get distance that currently is AND  min Distance that is legal
-    double distance = sqrt(dx*dx + dy*dy);
-    double minDistance = b1.getRadius() + b2.getRadius();
+    //find total inv mass sum
+    double invMassSum = b1.getInvMass() + b2.getInvMass();
 
-    //if phasing
-    if (distance < minDistance) {
-        double nx, ny;
-        // calculate the Normal (Unit Vector)
-        // use distance to make sure the vector length is 1.0
-        if (distance == 0)
-        {
-            nx = 1;
-            ny = 0.0;
-        }
-        else
-        {
-            nx = dx / distance; 
-            ny = dy / distance;
-        }
-       
-        // calculate the overlap
-        double overlap = minDistance - distance;
-
-        //find total inv mass sum
-        double invMassSum = b1.getInvMass() + b2.getInvMass();
-
-        //we cooked if this happens
-        if(invMassSum == 0)
-        {
-            return;
-        }
-
-        //now move them along the normal based on their respective masses.
-        //find out how much they move by mulaiplying the overlap to the individual InvMass/sum Invmass
-        double move1 = overlap*(b1.getInvMass()/invMassSum);
-        double move2 = overlap*(b2.getInvMass()/invMassSum);
-
-        //then find components along x and y by multiplying this to the normal
-        double dx1 = nx*move1;
-        double dx2 = nx*move2;
-
-        double dy1 = ny*move1;
-        double dy2 = ny*move2;
-
-        b1.setPositionX(pos1[0]-dx1);
-        b1.setPositionY(pos1[1]-dy1);
-
-        b2.setPositionX(pos2[0]+dx2);
-        b2.setPositionY(pos2[1]+dy2);
-
+    //we cooked if this happens
+    if(invMassSum == 0)
+    {
+        return;
     }
+
+    //now move them along the normal based on their respective masses.
+    //find out how much they move by mulaiplying the overlap to the individual InvMass/sum Invmass
+    double move1 = overlap * (b1.getInvMass() / invMassSum);
+    double move2 = overlap * (b2.getInvMass() / invMassSum);
+
+    //then find components along x and y by multiplying this to the normal
+    double dx1 = nx * move1;
+    double dx2 = nx * move2;
+
+    double dy1 = ny * move1;
+    double dy2 = ny * move2;
+
+    b1.setPositionX(pos1[0] - dx1);
+    b1.setPositionY(pos1[1] - dy1);
+
+    b2.setPositionX(pos2[0] + dx2);
+    b2.setPositionY(pos2[1] + dy2);
+
+    // after positional correction, resolve velocity with impulse
+    calculateImpulse(b1, b2, nx, ny);
 }
 
 void WorldPhysics::borderCheck(RigidBody& body1) {
@@ -238,11 +225,8 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
     //do this AFTER numerical integration
     for (size_t i = 0; i < bodies.size(); i++) {
         for (size_t j = i+1; j < bodies.size(); j++) {
-            if (areColliding(bodies[i], bodies[j])) {
-                resolveCollision(bodies[i], bodies[j]);
-                //calculateForce(bodies[i], bodies[j]); //DO NOT USE CALC FORCE
-                calculateImpulse(bodies[i], bodies[j]);
-            }
+            resolveCollision(bodies[i], bodies[j]);
+            //calculateForce(bodies[i], bodies[j]); //DO NOT USE CALC FORCE
         }
     }
 
