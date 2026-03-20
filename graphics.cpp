@@ -119,24 +119,23 @@ void Graphics::updateSize(int width, int height)
     windowWidth = width;
 }
 
-void Graphics::printPhysicsInfo(const std::vector<RigidBody>& bodies) {
+void Graphics::printPhysicsInfo(const std::vector<RigidBody>& bodies, double gravityY) {
     if (!font) return;
 
     // hide info text on very small windows
     if (windowWidth < 320 || windowHeight < 240) return;
 
-    // Compute total kinetic energy and total momentum
+    // Compute total kinetic energy
     double totalKE = 0.0;
-    double totalPX = 0.0;
-    double totalPY = 0.0;
+    double totalPE = 0.0;
 
     for (const auto& body : bodies) {
         const auto v = body.getVelocity();
+        const auto p = body.getPosition();
         const double m = body.getMass();
 
         totalKE += 0.5 * m * (v[0] * v[0] + v[1] * v[1]);
-        totalPX += m * v[0];
-        totalPY += m * v[1];
+        totalPE += m * (-gravityY) * p[1];  // PE = m*g*h (assuming g points down)
     }
 
     // Relative placement
@@ -156,23 +155,22 @@ void Graphics::printPhysicsInfo(const std::vector<RigidBody>& bodies) {
     drawText(ss.str(), x, y, color);
     y += lineStep;
 
-    // KE
+    // KE only
     ss.str("");
     ss.clear();
     ss << "Total KE: " << totalKE;
     drawText(ss.str(), x, y, color);
-    y += lineStep;
+    y += lineStep; // <-- ADD THIS LINE
 
-    // Momentum
-    ss.str("");
-    ss.clear();
-    ss << "Total Px: " << totalPX;
+    //PE only
+    ss.str(""); ss.clear();
+    ss << "Total PE: " << totalPE;
     drawText(ss.str(), x, y, color);
     y += lineStep;
 
-    ss.str("");
-    ss.clear();
-    ss << "Total Py: " << totalPY;
+    //total
+    ss.str(""); ss.clear();
+    ss << "Total E: " << (totalKE + totalPE);
     drawText(ss.str(), x, y, color);
 }
 

@@ -19,7 +19,7 @@ int main()
     srand(time(0));
     
     // Number of bodies to create
-    int n = 10000;
+    int n = 1;
     
     // Generate n random bodies
     for (int i = 0; i < n; i++) {
@@ -31,12 +31,11 @@ int main()
         double posY = (rand() / (double)RAND_MAX) * 600.0;
         
         // Random velocity: -500 to 500 for both x and y
-        double velX = -500.0 + (rand() / (double)RAND_MAX) * 1000.0;
-        double velY = -500.0 + (rand() / (double)RAND_MAX) * 1000.0;
-        
+        double velX = -5.0 + (rand() / (double)RAND_MAX) ;
+        double velY = -5.0 + (rand() / (double)RAND_MAX) ;
         // Make radius proportional to mass
         // radius = sqrt(mass / π) * scale_factor
-        double radius = sqrt(mass / M_PI)/5;
+        double radius = sqrt(mass / M_PI)*2;
         
         world.addBody(RigidBody(radius, mass, {posX, posY}, {velX, velY}));
     }
@@ -46,6 +45,9 @@ int main()
     bool running = true;
     SDL_Event event;
 
+    bool gravityOn = false;
+    world.setGravity({0.0, 0.0});
+
     while (running)
     {
         // Handle events
@@ -53,9 +55,19 @@ int main()
             if (event.type == SDL_QUIT) {
                 running = false;
             }
+
             if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
                 running = false;
             }
+
+            // <-- ADD THIS BLOCK
+            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_g) {
+                gravityOn = !gravityOn;
+                world.setGravity(gravityOn ? std::array<double, 2>{0.0, -980.0}
+                                           : std::array<double, 2>{0.0, 0.0});
+                std::cout << "Gravity: " << (gravityOn ? "ON" : "OFF") << std::endl;
+            }
+            // <-- END ADD
 
             // --- ADD THIS BLOCK FOR RESIZE ---
             if (event.type == SDL_WINDOWEVENT) {
@@ -94,7 +106,7 @@ int main()
         }
 
         // Display informational text (Energy, Momentum, etc.)
-        graphics.printPhysicsInfo(bodies);
+        graphics.printPhysicsInfo(bodies,world.getGravity()[1]);
 
         // Present the frame
         graphics.present();

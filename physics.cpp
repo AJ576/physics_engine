@@ -215,8 +215,24 @@ const std::vector<RigidBody>& WorldPhysics::getBodies() const {
     return bodies;
 }
 
+void WorldPhysics::applyGlobalForces(double dt)
+{
+    for (size_t i = 0; i < bodies.size(); ++i) {
+        // static / infinite-mass objects should not accelerate
+        if (bodies[i].getInvMass() == 0.0) continue;
+
+        auto v = bodies[i].getVelocity();
+        v[0] += gravity_[0] * dt;
+        v[1] += gravity_[1] * dt;
+        bodies[i].setVelocity(v);
+    }
+}
+
 void WorldPhysics::runPhysics(const TimeManager& TIME)
 {
+    // Clean gravity hook
+    applyGlobalForces(TIME.fixedDeltaTime);
+
     //First step numerical integration
     for (size_t i = 0; i < bodies.size(); i++) {
         bodies[i].numericalIntegration(TIME.fixedDeltaTime);
