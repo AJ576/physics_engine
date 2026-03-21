@@ -21,7 +21,7 @@ int main()
     const int n = 4;
     for (int i = 0; i < n; i++) {
         double mass = 30.0 + i * 15.0;
-        double radius = sqrt(mass / M_PI) / 5.0;
+        double radius = sqrt(mass / M_PI) ;
         double posX, posY, velX, velY;
         if (i < 2) {
             // Land on right spring (x ~300–450)
