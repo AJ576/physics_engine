@@ -2,6 +2,7 @@
 #define PHYSICS_HPP
 
 #include "rigidBody.hpp"
+#include "spring.hpp"
 #include <vector>
 #include <array>
 #include <chrono>
@@ -30,6 +31,7 @@ class WorldPhysics {
         std::array<double, 2> border_;  
         std::unordered_map<long long,std::vector<RigidBody*>> grid;
         int grid_size = 10;
+        std::vector<Spring> springs_; // Global vector of springs.
 
         bool areColliding(const RigidBody& body1, const RigidBody& body2,
                         double& nx, double& ny, double& overlap);
@@ -43,11 +45,14 @@ class WorldPhysics {
 
         void addBody(const RigidBody& body);
         std::vector<RigidBody>& getBodies();
+
+        void addSpring(const Spring& spring);
+        const std::vector<Spring>& getSprings() const;
+
         const std::vector<RigidBody>& getBodies() const;
         void runPhysics(const TimeManager& TIME);
         
         std::array<double, 2> getBorder() const { return border_; }
         void setBorder(std::array<double, 2> border) { border_ = border; }
 };
-
 #endif // PHYSICS_HPP

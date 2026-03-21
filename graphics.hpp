@@ -8,6 +8,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include "rigidBody.hpp"
+#include "spring.hpp"
 
 class Graphics {
 private:
@@ -33,6 +34,7 @@ public:
 
     void clear();
     void drawCircle(const RigidBody& body, const std::array<int, 4>& color);
+    void drawSpring(const Spring& spring, const std::array<int, 4>& color);
     void drawText(const std::string& text, int x, int y, const std::array<int, 4>& color);
     void present();
     bool processEvents();

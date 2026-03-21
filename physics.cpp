@@ -207,6 +207,14 @@ void WorldPhysics::addBody(const RigidBody& body) {
     bodies.push_back(body);
 }
 
+void WorldPhysics::addSpring(const Spring& spring) {
+    springs_.push_back(spring);
+}
+
+const std::vector<Spring>& WorldPhysics::getSprings() const {
+    return springs_;
+}
+
 std::vector<RigidBody>& WorldPhysics::getBodies() {
     return bodies;
 }
@@ -248,6 +256,15 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
     //         //calculateForce(bodies[i], bodies[j]); //DO NOT USE CALC FORCE
     //     }
     // }
+
+    //check for spring collisions
+    for (size_t i = 0; i < bodies.size(); i++) {
+        for (const auto& spring : springs_) {
+            if (isBallOnSpring(bodies[i], spring)) {
+                applySpringImpulse(bodies[i], spring);
+            }
+        }
+    }
 
     for (auto& entry: grid)
     {
