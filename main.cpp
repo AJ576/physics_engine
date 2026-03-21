@@ -31,8 +31,8 @@ int main()
         double posY = (rand() / (double)RAND_MAX) * 600.0;
         
         // Random velocity: -500 to 500 for both x and y
-        double velX = -5.0 + (rand() / (double)RAND_MAX) ;
-        double velY = -5.0 + (rand() / (double)RAND_MAX) ;
+        double velX = -5.0 + (rand() / (double)RAND_MAX)*100 ;
+        double velY = -5.0 + (rand() / (double)RAND_MAX)*100 ;
         // Make radius proportional to mass
         // radius = sqrt(mass / π) * scale_factor
         double radius = sqrt(mass / M_PI)*2;

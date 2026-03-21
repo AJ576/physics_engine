@@ -23,24 +23,16 @@ RigidBody::RigidBody(double radius, double mass,
 void RigidBody::numericalIntegration(double dt) {
     if (mass_ == 0.0) return;
 
-    // Numerical Integration. 
-    // We are using Semi-Implicit Euler Method for integration. So, we need to update the velocity first and then the position.
-    // This is because the velocity is dependent on the acceleration, and the position is dependent on the velocity.
-
-    // Acceleration. Now uses inverse mass. 
-    //multiplication is faster than division and usally more accurate. OPTIMIZATIONS!
     acceleration_[0] = force_[0] * invMass_;
     acceleration_[1] = force_[1] * invMass_;
 
-    // Velocity
+    // Use old velocity for position update (constant-accel kinematics)
+    position_[0] += velocity_[0] * dt + 0.5 * acceleration_[0] * dt * dt;
+    position_[1] += velocity_[1] * dt + 0.5 * acceleration_[1] * dt * dt;
+
     velocity_[0] += acceleration_[0] * dt;
     velocity_[1] += acceleration_[1] * dt;
-    
-    // Position
-    position_[0] += velocity_[0] * dt;
-    position_[1] += velocity_[1] * dt;
 
-    // Reset force
     force_[0] = 0.0;
     force_[1] = 0.0;
 }

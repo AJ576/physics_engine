@@ -35,7 +35,7 @@ private:
     std::unordered_map<long long, std::vector<RigidBody*>> grid;
     double grid_size = 10;
 
-    void applyGlobalForces(double dt);
+    void applyGlobalForces();
     bool areColliding(const RigidBody& body1, const RigidBody& body2,
                     double& nx, double& ny, double& overlap);
     void calculateForce(RigidBody& body1, RigidBody& body2);
