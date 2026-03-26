@@ -19,7 +19,7 @@ int main()
     srand(time(0));
     
     // Number of bodies to create
-    int n = 1;
+    int n = 10;
     
     // Generate n random bodies
     for (int i = 0; i < n; i++) {
@@ -31,8 +31,8 @@ int main()
         double posY = (rand() / (double)RAND_MAX) * 600.0;
         
         // Random velocity: -500 to 500 for both x and y
-        double velX = -5.0 + (rand() / (double)RAND_MAX)*100 ;
-        double velY = -5.0 + (rand() / (double)RAND_MAX)*100 ;
+        double velX = -5.0 + (rand() / (double)RAND_MAX)*500 ;
+        double velY = -5.0 + (rand() / (double)RAND_MAX)*500 ;
         // Make radius proportional to mass
         // radius = sqrt(mass / π) * scale_factor
         double radius = sqrt(mass / M_PI)*2;

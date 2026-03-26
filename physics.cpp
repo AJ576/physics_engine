@@ -1,6 +1,7 @@
 #include "physics.hpp"
 #include <iostream>
 #include <cmath>
+#include <algorithm> // std::clamp
 
 extern double springConstant; // N/m
 extern double e; // coefficient of restitution
@@ -182,23 +183,56 @@ void WorldPhysics::resolveCollision(RigidBody& b1, RigidBody& b2)
 }
 
 void WorldPhysics::borderCheck(RigidBody& body1) {
-    double radius = body1.getRadius();
+    const double radius = body1.getRadius();
     std::array<double, 2> pos = body1.getPosition();
     std::array<double, 2> vel = body1.getVelocity();
 
+    const double restitution = (e < 0.0) ? 0.0 : (e > 1.0) ? 1.0 : e;
+
+    // Resting-contact tuning
+    constexpr double fixedDt = 1.0 / 60.0;   // matches your solver step
+    constexpr double restFactor = 1.25;      // scales |g|*dt threshold
+    constexpr double minRestSpeed = 0.5;     // fallback if gravity axis is 0
+    constexpr double maxRestPen = 0.5;       // only snap when penetration is tiny
+
     for (int i = 0; i < 2; ++i) {
-        // Lower bound (0 + radius)
-        if (pos[i] < radius) {
-            pos[i] = radius; 
-            vel[i] *= -1.0;
+        const double minBound = radius;
+        const double maxBound = border_[i] - radius;
+
+        // Lower wall
+        if (pos[i] < minBound) {
+            const double penetration = minBound - pos[i];
+            if (vel[i] < 0.0) { // moving farther out
+                const double restSpeed = std::max(minRestSpeed, restFactor * std::abs(gravity_[i]) * fixedDt);
+                const bool gravityIntoWall = (gravity_[i] < 0.0);
+
+                if (gravityIntoWall && std::abs(vel[i]) <= restSpeed && penetration <= maxRestPen) {
+                    // Resting contact: kill jitter/sinking
+                    pos[i] = minBound;
+                    vel[i] = 0.0;
+                } else {
+                    // Impact bounce
+                    vel[i] = -vel[i] * restitution;
+                }
+            }
         }
-        // Upper bound (border - radius)
-        else if (pos[i] > border_[i] - radius) {
-            pos[i] = border_[i] - radius;
-            vel[i] *= -1.0;
+        // Upper wall
+        else if (pos[i] > maxBound) {
+            const double penetration = pos[i] - maxBound;
+            if (vel[i] > 0.0) { // moving farther out
+                const double restSpeed = std::max(minRestSpeed, restFactor * std::abs(gravity_[i]) * fixedDt);
+                const bool gravityIntoWall = (gravity_[i] > 0.0);
+
+                if (gravityIntoWall && std::abs(vel[i]) <= restSpeed && penetration <= maxRestPen) {
+                    pos[i] = maxBound;
+                    vel[i] = 0.0;
+                } else {
+                    vel[i] = -vel[i] * restitution;
+                }
+            }
         }
     }
-    
+
     body1.setPosition(pos);
     body1.setVelocity(vel);
 }
