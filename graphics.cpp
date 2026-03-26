@@ -1,4 +1,5 @@
 #include "graphics.hpp"
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -66,6 +67,17 @@ void Graphics::drawCircle(const RigidBody& body, const std::array<int, 4>& color
     dst.y = windowHeight - ((int)std::round(p[1]) + r); // keep your Y-flip convention
 
     SDL_RenderCopy(renderer, tex, nullptr, &dst);
+}
+
+void Graphics::drawSpring(const Spring& spring, const std::array<int, 4>& color) {
+    SDL_SetRenderDrawColor(renderer, (Uint8)color[0], (Uint8)color[1], (Uint8)color[2], (Uint8)color[3]);
+    SDL_Rect rect;
+    rect.x = (int)std::round(spring.getX());
+    // Physics y is up; SDL y is down — match drawCircle convention
+    rect.y = windowHeight - (int)std::round(spring.getY() + spring.getHeight());
+    rect.w = std::max(1, (int)std::round(spring.getWidth()));
+    rect.h = std::max(1, (int)std::round(spring.getHeight()));
+    SDL_RenderFillRect(renderer, &rect);
 }
 
 void Graphics::drawText(const std::string& text, int x, int y, const std::array<int, 4>& color) {

@@ -2,6 +2,7 @@
 #define PHYSICS_HPP
 
 #include "rigidBody.hpp"
+#include "spring.hpp"
 #include <vector>
 #include <array>
 #include <chrono>
@@ -26,10 +27,19 @@ class TimeManager {
 };
 
 class WorldPhysics {
+<<<<<<< HEAD
 private:
     std::vector<RigidBody> bodies;
     std::array<double, 2> border_;
     std::array<double, 2> gravity_ = {0.0, -9.8}; // world gravity (x,y)
+=======
+    private:
+        std::vector<RigidBody> bodies;
+        std::array<double, 2> border_;  
+        std::unordered_map<long long,std::vector<RigidBody*>> grid;
+        int grid_size = 10;
+        std::vector<Spring> springs_; // Global vector of springs.
+>>>>>>> main
 
     // add back grid members used by physics.cpp
     std::unordered_map<long long, std::vector<RigidBody*>> grid;
@@ -43,6 +53,7 @@ private:
     void resolveCollision(RigidBody& b1, RigidBody& b2);
     void borderCheck(RigidBody& body1);
 
+<<<<<<< HEAD
 public:
     WorldPhysics(std::array<double, 2> border);
 
@@ -55,6 +66,18 @@ public:
     void setBorder(std::array<double, 2> border) { border_ = border; }
     void setGravity(const std::array<double, 2>& g) { gravity_ = g; }
     std::array<double, 2> getGravity() const { return gravity_; }
-};
+=======
+        void addBody(const RigidBody& body);
+        std::vector<RigidBody>& getBodies();
 
+        void addSpring(const Spring& spring);
+        const std::vector<Spring>& getSprings() const;
+
+        const std::vector<RigidBody>& getBodies() const;
+        void runPhysics(const TimeManager& TIME);
+        
+        std::array<double, 2> getBorder() const { return border_; }
+        void setBorder(std::array<double, 2> border) { border_ = border; }
+>>>>>>> main
+};
 #endif // PHYSICS_HPP
