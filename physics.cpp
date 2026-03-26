@@ -292,25 +292,16 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
     // Iterative solver: repeat collision resolution a few times
     constexpr int collisionIterations = 2; // tweak to 2-3 for stability vs speed
     for (int it = 0; it < collisionIterations; ++it)
-    // //do this AFTER numerical integration
-    // for (size_t i = 0; i < bodies.size(); i++) {
-    //     for (size_t j = i+1; j < bodies.size(); j++) {
-    //         resolveCollision(bodies[i], bodies[j]);
-    //         //calculateForce(bodies[i], bodies[j]); //DO NOT USE CALC FORCE
-    //     }
-    // }
-
-    //check for spring collisions
-    for (size_t i = 0; i < bodies.size(); i++) {
-        for (const auto& spring : springs_) {
-            if (isBallOnSpring(bodies[i], spring)) {
-                applySpringImpulse(bodies[i], spring);
+    {
+        //check for spring collisions
+        for (size_t i = 0; i < bodies.size(); i++) {
+            for (const auto& spring : springs_) {
+                if (isBallOnSpring(bodies[i], spring)) {
+                    applySpringImpulse(bodies[i], spring);
+                }
             }
         }
-    }
 
-    for (auto& entry: grid)
-    {
         for (auto& entry: grid)
         {
             long long key = entry.first;

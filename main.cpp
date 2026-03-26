@@ -18,7 +18,7 @@ int main()
     srand(time(0));
     
     // Number of random bodies to create
-    int randomBodyCount = 1000;
+    int randomBodyCount = 10000;
     
     // Generate n random bodies
     for (int i = 0; i < randomBodyCount; i++) {
@@ -45,26 +45,26 @@ int main()
     }
 
     // Few balls, placed above the springs so you can see bounces (y is up, vy < 0 = downward)
-    const int springBallCount = 4;
-    for (int i = 0; i < springBallCount; i++) {
-        double mass = 30.0 + i * 15.0;
-        double radius = sqrt(mass / M_PI) ;
-        double posX, posY, velX, velY;
-        if (i < 2) {
-            // Land on right spring (x ~300–450)
-            posX = 330.0 + i * 50.0;
-            posY = 220.0 + i * 40.0;
-            velX = (i == 0) ? 40.0 : -30.0;
-            velY = -180.0;
-        } else {
-            // Land on left spring (x ~100–220)
-            posX = 130.0 + (i - 2) * 45.0;
-            posY = 240.0;
-            velX = 25.0;
-            velY = -160.0;
-        }
-        world.addBody(RigidBody(radius, mass, {posX, posY}, {velX, velY}));
-    }
+    // const int springBallCount = 4;
+    // for (int i = 0; i < springBallCount; i++) {
+    //     double mass = 30.0 + i * 15.0;
+    //     double radius = sqrt(mass / M_PI) ;
+    //     double posX, posY, velX, velY;
+    //     if (i < 2) {
+    //         // Land on right spring (x ~300–450)
+    //         posX = 330.0 + i * 50.0;
+    //         posY = 220.0 + i * 40.0;
+    //         velX = (i == 0) ? 40.0 : -30.0;
+    //         velY = -180.0;
+    //     } else {
+    //         // Land on left spring (x ~100–220)
+    //         posX = 130.0 + (i - 2) * 45.0;
+    //         posY = 240.0;
+    //         velX = 25.0;
+    //         velY = -160.0;
+    //     }
+    //     world.addBody(RigidBody(radius, mass, {posX, posY}, {velX, velY}));
+    // }
    
     TimeManager TIME;
 
