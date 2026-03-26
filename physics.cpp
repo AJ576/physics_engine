@@ -1,6 +1,7 @@
 #include "physics.hpp"
 #include <iostream>
 #include <cmath>
+#include <algorithm> // std::clamp
 
 extern double springConstant; // N/m
 extern double e; // coefficient of restitution
@@ -181,28 +182,57 @@ void WorldPhysics::resolveCollision(RigidBody& b1, RigidBody& b2)
     calculateImpulse(b1, b2, nx, ny);
 }
 
-void WorldPhysics::borderCheck(RigidBody& body1) {
-    double radius = body1.getRadius();
-    std::array<double, 2> pos = body1.getPosition();
-    std::array<double, 2> vel = body1.getVelocity();
+void WorldPhysics::borderCheck(RigidBody& body)
+{
+    const double radius = body.getRadius();
+    auto pos = body.getPosition();
+    auto vel = body.getVelocity();
 
-    for (int i = 0; i < 2; ++i) {
-        // Lower bound (0 + radius)
-        if (pos[i] < radius) {
-            pos[i] = radius; 
-            vel[i] *= -1.0;
+    const double restitution = e;
+
+    constexpr double slop = 0.001; // VERY small
+    constexpr double percent = 0.8; // correction strength
+
+    for (int i = 0; i < 2; ++i)
+    {
+        double minBound = radius;
+        double maxBound = border_[i] - radius;
+
+        // ---- penetration check ----
+        double penetration = 0.0;
+        double normal = 0.0;
+
+        if (pos[i] < minBound)
+        {
+            penetration = minBound - pos[i];
+            normal = +1.0;
         }
-        // Upper bound (border - radius)
-        else if (pos[i] > border_[i] - radius) {
-            pos[i] = border_[i] - radius;
-            vel[i] *= -1.0;
+        else if (pos[i] > maxBound)
+        {
+            penetration = pos[i] - maxBound;
+            normal = -1.0;
+        }
+        else
+        {
+            continue;
+        }
+
+        // ---- SOFT positional correction ----
+        double correction = std::max(penetration - slop, 0.0) * percent;
+        pos[i] += normal * correction;
+
+        // ---- velocity impulse (only if moving INTO wall) ----
+        double v = vel[i];
+
+        if ((v * normal) < 0.0)
+        {
+            vel[i] = -v * restitution;
         }
     }
-    
-    body1.setPosition(pos);
-    body1.setVelocity(vel);
-}
 
+    body.setPosition(pos);
+    body.setVelocity(vel);
+}
 void WorldPhysics::addBody(const RigidBody& body) {
     bodies.push_back(body);
 }
@@ -223,21 +253,32 @@ const std::vector<RigidBody>& WorldPhysics::getBodies() const {
     return bodies;
 }
 
+void WorldPhysics::applyGlobalForces()
+{
+    for (size_t i = 0; i < bodies.size(); ++i) {
+        if (bodies[i].getInvMass() == 0.0) continue;
+
+        auto f = bodies[i].getForce();
+        f[0] += bodies[i].getMass() * gravity_[0];
+        f[1] += bodies[i].getMass() * gravity_[1];
+        bodies[i].setForce(f);
+    }
+}
+
 void WorldPhysics::runPhysics(const TimeManager& TIME)
 {
-    //First step numerical integration
+    // Clean gravity hook
+    applyGlobalForces();
+
+    // First step numerical integration
     for (size_t i = 0; i < bodies.size(); i++) {
         bodies[i].numericalIntegration(TIME.fixedDeltaTime);
     }
 
-    //grid collision starts here
-    //clear the grid
+    // Rebuild the grid
     grid.clear();
-
-    //rebuild the grid
-    for (size_t i = 0; i<bodies.size(); i++)
+    for (size_t i = 0; i < bodies.size(); i++)
     {
-        //get poistion and thus the cell val
         double x = bodies[i].getPosition()[0];
         double y = bodies[i].getPosition()[1];
 
@@ -245,10 +286,12 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
         int cell_y = (int)std::floor(y / grid_size);
 
         long long key = ((long long)cell_x << 32) | (unsigned int)cell_y;
-
         grid[key].push_back(&bodies[i]);
     }
 
+    // Iterative solver: repeat collision resolution a few times
+    constexpr int collisionIterations = 2; // tweak to 2-3 for stability vs speed
+    for (int it = 0; it < collisionIterations; ++it)
     // //do this AFTER numerical integration
     // for (size_t i = 0; i < bodies.size(); i++) {
     //     for (size_t j = i+1; j < bodies.size(); j++) {
@@ -268,53 +311,49 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
 
     for (auto& entry: grid)
     {
-        long long key = entry.first;
-        std::vector<RigidBody*>& cell = entry.second;
-
-        //unpack the coords from key
-        int x = key >> 32;
-        int y = (int) (key & 0xFFFFFFFF);
-
-        //loop over all bodies inside the cell
-        for (size_t i = 0; i < cell.size();i++)
+        for (auto& entry: grid)
         {
-            for(size_t j = i+1; j < cell.size(); j++)
+            long long key = entry.first;
+            std::vector<RigidBody*>& cell = entry.second;
+
+            int x = key >> 32;
+            int y = (int)(key & 0xFFFFFFFF);
+
+            // Collisions inside the cell
+            for (size_t i = 0; i < cell.size(); i++)
             {
-                resolveCollision(*cell[i],*cell[j]);
-            }
-        }
-        //now the neigbors which is a bit weirder.
-        //we only chck forward and down neigbors cuz neighbors behidn us and above already checked us
-
-        int offsets[4][2] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
-
-        for(auto &off : offsets)
-        {
-            int nx = x + off[0];
-            int ny = y + off[1];
-            //make key to access the cell
-            long long nkey = ((long long)nx << 32) | (unsigned int)ny;
-            //if key exists
-            auto it = grid.find(nkey);
-            if (it != grid.end())
-            {
-                auto& ncell = it->second;
-
-                for (size_t i = 0; i < cell.size();i++)
+                for (size_t j = i + 1; j < cell.size(); j++)
                 {
-                    for (size_t j = 0; j < ncell.size();j++)
-                    {
-                        resolveCollision(*cell[i],*ncell[j]);
-                    }
-        
+                    resolveCollision(*cell[i], *cell[j]);
                 }
             }
-        }   
+
+            // Collisions with neighboring cells
+            int offsets[4][2] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+            for (auto &off : offsets)
+            {
+                int nx = x + off[0];
+                int ny = y + off[1];
+                long long nkey = ((long long)nx << 32) | (unsigned int)ny;
+
+                auto itNeighbor = grid.find(nkey);
+                if (itNeighbor != grid.end())
+                {
+                    auto& ncell = itNeighbor->second;
+                    for (size_t i = 0; i < cell.size(); i++)
+                    {
+                        for (size_t j = 0; j < ncell.size(); j++)
+                        {
+                            resolveCollision(*cell[i], *ncell[j]);
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    //Final step, border check
+    // Final step, border check
     for (size_t i = 0; i < bodies.size(); i++) {
         borderCheck(bodies[i]);
     }
 }
-
