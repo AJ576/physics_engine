@@ -9,19 +9,19 @@
 int main()
 {
     Graphics graphics(800, 600);
+    const bool enableSprings = false;
 
     // Initialize World Physics with the border
     WorldPhysics world({800.0, 600.0});
 
-<<<<<<< HEAD
     // Seed random number generator
     srand(time(0));
     
-    // Number of bodies to create
-    int n = 1;
+    // Number of random bodies to create
+    int randomBodyCount = 1000;
     
     // Generate n random bodies
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < randomBodyCount; i++) {
         // Random mass: 10 to 100
         double mass = 10.0 + (rand() / (double)RAND_MAX) * 90.0;
         
@@ -34,16 +34,19 @@ int main()
         double velY = -5.0 + (rand() / (double)RAND_MAX)*100 ;
         // Make radius proportional to mass
         // radius = sqrt(mass / π) * scale_factor
-        double radius = sqrt(mass / M_PI)*2;
+        double radius = sqrt(mass / M_PI) /5;
+        world.addBody(RigidBody(radius, mass, {posX, posY}, {velX, velY}));
+    }
         
-=======
     // Ground springs: (x, y bottom, width, height, spring constant k)
-    world.addSpring(Spring(300, 0, 150, 15, 800.0));
-    world.addSpring(Spring(100, 0, 120, 12, 600.0));
+    if (enableSprings) {
+        world.addSpring(Spring(300, 0, 150, 15, 800.0));
+        world.addSpring(Spring(100, 0, 120, 12, 600.0));
+    }
 
     // Few balls, placed above the springs so you can see bounces (y is up, vy < 0 = downward)
-    const int n = 4;
-    for (int i = 0; i < n; i++) {
+    const int springBallCount = 4;
+    for (int i = 0; i < springBallCount; i++) {
         double mass = 30.0 + i * 15.0;
         double radius = sqrt(mass / M_PI) ;
         double posX, posY, velX, velY;
@@ -60,7 +63,6 @@ int main()
             velX = 25.0;
             velY = -160.0;
         }
->>>>>>> main
         world.addBody(RigidBody(radius, mass, {posX, posY}, {velX, velY}));
     }
    
@@ -122,9 +124,11 @@ int main()
         graphics.clear();
 
         // Draw springs behind balls
-        std::array<int, 4> springColor = {140, 200, 140, 255};
-        for (const auto& spring : world.getSprings()) {
-            graphics.drawSpring(spring, springColor);
+        if (enableSprings) {
+            std::array<int, 4> springColor = {140, 200, 140, 255};
+            for (const auto& spring : world.getSprings()) {
+                graphics.drawSpring(spring, springColor);
+            }
         }
 
         // Get bodies reference for rendering and calculations

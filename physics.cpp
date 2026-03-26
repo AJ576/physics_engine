@@ -289,11 +289,9 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
         grid[key].push_back(&bodies[i]);
     }
 
-<<<<<<< HEAD
     // Iterative solver: repeat collision resolution a few times
     constexpr int collisionIterations = 2; // tweak to 2-3 for stability vs speed
     for (int it = 0; it < collisionIterations; ++it)
-=======
     // //do this AFTER numerical integration
     // for (size_t i = 0; i < bodies.size(); i++) {
     //     for (size_t j = i+1; j < bodies.size(); j++) {
@@ -312,7 +310,6 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
     }
 
     for (auto& entry: grid)
->>>>>>> main
     {
         for (auto& entry: grid)
         {

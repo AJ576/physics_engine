@@ -2,7 +2,7 @@
 #include <iostream>
 
 double springConstant = 100.0; // N/m - initialized with default value
-double e = 0.1; //coefficent of restitution should be 1 for perfectly elastic collision
+double e = 1; //coefficent of restitution should be 1 for perfectly elastic collision
 
 // RigidBody constructor
 RigidBody::RigidBody(double radius, double mass, 
