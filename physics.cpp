@@ -190,48 +190,43 @@ void WorldPhysics::borderCheck(RigidBody& body)
 
     const double restitution = e;
 
-    constexpr double slop = 0.001; // VERY small
-    constexpr double percent = 0.8; // correction strength
+    constexpr double slop = 0.001;   // small tolerance
+    constexpr double percent = 0.8;  // correction strength
+    constexpr double lowSpeedThreshold = 5.0; // only correct position if below this
 
     for (int i = 0; i < 2; ++i)
     {
         double minBound = radius;
         double maxBound = border_[i] - radius;
 
-        // ---- penetration check ----
         double penetration = 0.0;
         double normal = 0.0;
 
-        if (pos[i] < minBound)
-        {
+        if (pos[i] < minBound) {
             penetration = minBound - pos[i];
             normal = +1.0;
-        }
-        else if (pos[i] > maxBound)
-        {
+        } else if (pos[i] > maxBound) {
             penetration = pos[i] - maxBound;
             normal = -1.0;
-        }
-        else
-        {
+        } else {
             continue;
         }
 
-        // ---- SOFT positional correction ----
-        double correction = std::max(penetration - slop, 0.0) * percent;
-        pos[i] += normal * correction;
-
-        // ---- velocity impulse (only if moving INTO wall) ----
+        // positional correction ONLY if velocity into wall is small
         double v = vel[i];
-
-        if ((v * normal) < 0.0)
-        {
-            vel[i] = -v * restitution;
+        if (std::abs(v) < lowSpeedThreshold) {
+            double correction = std::max(penetration - slop, 0.0) * percent;
+            pos[i] += normal * correction;
         }
-    }
 
-    body.setPosition(pos);
-    body.setVelocity(vel);
+        // always apply velocity bounce
+        if ((v * normal) < 0.0) {
+            vel[i] = -v * e;
+        }
+}
+
+body.setPosition(pos);
+body.setVelocity(vel);
 }
 void WorldPhysics::addBody(const RigidBody& body) {
     bodies.push_back(body);
