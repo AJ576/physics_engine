@@ -181,7 +181,6 @@ void WorldPhysics::resolveCollision(RigidBody& b1, RigidBody& b2)
     // after positional correction, resolve velocity with impulse
     calculateImpulse(b1, b2, nx, ny);
 }
-
 void WorldPhysics::borderCheck(RigidBody& body)
 {
     const double radius = body.getRadius();
@@ -190,9 +189,15 @@ void WorldPhysics::borderCheck(RigidBody& body)
 
     const double restitution = e;
 
-    constexpr double slop = 0.001;   // small tolerance
-    constexpr double percent = 0.8;  // correction strength
-    constexpr double lowSpeedThreshold = 5.0; // only correct position if below this
+    constexpr double slop = 0.001;
+    constexpr double percent = 0.8;
+    constexpr double maxCorrection = 0.1; // max positional correction per frame
+    constexpr double lowSpeedThreshold = 5.0; // speed below which we apply correction
+
+    // compute velocity along gravity
+    double vAlongGravity = vel[0] * gravity_[0] + vel[1] * gravity_[1];
+    double gMagSq = gravity_[0]*gravity_[0] + gravity_[1]*gravity_[1];
+    double vRel = (gMagSq > 0.0) ? std::abs(vAlongGravity) / std::sqrt(gMagSq) : 0.0;
 
     for (int i = 0; i < 2; ++i)
     {
@@ -212,21 +217,21 @@ void WorldPhysics::borderCheck(RigidBody& body)
             continue;
         }
 
-        // positional correction ONLY if velocity into wall is small
-        double v = vel[i];
-        if (std::abs(v) < lowSpeedThreshold) {
-            double correction = std::max(penetration - slop, 0.0) * percent;
+        // apply positional correction only if relative speed along gravity is low
+        double correction = 0.0;
+        if (vRel < lowSpeedThreshold) {
+            correction = std::min(std::max(penetration - slop, 0.0) * percent, maxCorrection);
             pos[i] += normal * correction;
         }
 
-        // always apply velocity bounce
-        if ((v * normal) < 0.0) {
-            vel[i] = -v * e;
+        // always apply velocity impulse to bounce high-speed impacts
+        if ((vel[i] * normal) < 0.0) {
+            vel[i] = -vel[i] * restitution;
         }
-}
+    }
 
-body.setPosition(pos);
-body.setVelocity(vel);
+    body.setPosition(pos);
+    body.setVelocity(vel);
 }
 void WorldPhysics::addBody(const RigidBody& body) {
     bodies.push_back(body);
