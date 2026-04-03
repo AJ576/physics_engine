@@ -72,6 +72,7 @@ int main()
     SDL_Event event;
 
     bool gravityOn = false;
+    std::array<double, 2> gravityDirection = {0.0, -980.0};
     world.setGravity({0.0, 0.0});
 
     while (running)
@@ -89,9 +90,25 @@ int main()
             // <-- ADD THIS BLOCK
             if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_g) {
                 gravityOn = !gravityOn;
-                world.setGravity(gravityOn ? std::array<double, 2>{0.0, -980.0}
+                world.setGravity(gravityOn ? gravityDirection
                                            : std::array<double, 2>{0.0, 0.0});
                 std::cout << "Gravity: " << (gravityOn ? "ON" : "OFF") << std::endl;
+            }
+
+            if (event.type == SDL_KEYDOWN && gravityOn) {
+                if (event.key.keysym.sym == SDLK_UP) {
+                    gravityDirection = {0.0, 980.0};
+                    world.setGravity(gravityDirection);
+                } else if (event.key.keysym.sym == SDLK_DOWN) {
+                    gravityDirection = {0.0, -980.0};
+                    world.setGravity(gravityDirection);
+                } else if (event.key.keysym.sym == SDLK_LEFT) {
+                    gravityDirection = {-980.0, 0.0};
+                    world.setGravity(gravityDirection);
+                } else if (event.key.keysym.sym == SDLK_RIGHT) {
+                    gravityDirection = {980.0, 0.0};
+                    world.setGravity(gravityDirection);
+                }
             }
             // <-- END ADD
 
