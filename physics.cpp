@@ -45,6 +45,21 @@ void TimeManager::reset() {
 // WorldPhysics method implementations
 WorldPhysics::WorldPhysics(std::array<double, 2> border) : border_(border) {}
 
+void WorldPhysics::applyGlobalForces()
+{
+    for (size_t i = 0; i < bodies.size(); ++i)
+    {
+        if (bodies[i].getInvMass() == 0.0) {
+            continue;
+        }
+
+        auto force = bodies[i].getForce();
+        force[0] += bodies[i].getMass() * gravity_[0];
+        force[1] += bodies[i].getMass() * gravity_[1];
+        bodies[i].setForce(force);
+    }
+}
+
 // Free function implementations -> WorldPhysics method implementations
 bool WorldPhysics::areColliding(const RigidBody& body1, const RigidBody& body2,
                                 double& nx, double& ny, double& overlap) {
@@ -181,28 +196,47 @@ void WorldPhysics::resolveCollision(RigidBody& b1, RigidBody& b2)
     calculateImpulse(b1, b2, nx, ny);
 }
 
-void WorldPhysics::borderCheck(RigidBody& body1) {
+void WorldPhysics::borderCheck(RigidBody& body1, double dt) {
     double radius = body1.getRadius();
     std::array<double, 2> pos = body1.getPosition();
     std::array<double, 2> vel = body1.getVelocity();
+    std::array<double, 2> acc = body1.getAcceleration();
 
     for (int i = 0; i < 2; ++i) {
-        // Lower bound (0 + radius)
-        if (pos[i] < radius) {
-            pos[i] = radius; 
-            vel[i] *= -1.0;
+        double minBound = radius;
+        double maxBound = border_[i] - radius;
+
+        double penetration = 0.0;
+        double normal = 0.0;
+        double bound = 0.0;
+
+        if (pos[i] < minBound) {
+            penetration = minBound - pos[i];
+            normal = +1.0;
+            bound = minBound;
+        } else if (pos[i] > maxBound) {
+            penetration = pos[i] - maxBound;
+            normal = -1.0;
+            bound = maxBound;
+        } else {
+            continue;
         }
-        // Upper bound (border - radius)
-        else if (pos[i] > border_[i] - radius) {
-            pos[i] = border_[i] - radius;
-            vel[i] *= -1.0;
+
+        bool movingWithGravity = gravity_[i] != 0.0 && (vel[i] * gravity_[i] > 0.0);
+        double restingVelocityThreshold = std::abs(gravity_[i]) * dt;
+        bool slowEnoughToRest = std::abs(vel[i]) <= restingVelocityThreshold;
+
+        if (movingWithGravity && slowEnoughToRest) {
+            pos[i] = bound;
+            vel[i] = 0.0;
+        } else {
+            vel[i] = -vel[i] * e;
         }
     }
     
     body1.setPosition(pos);
     body1.setVelocity(vel);
 }
-
 void WorldPhysics::addBody(const RigidBody& body) {
     bodies.push_back(body);
 }
@@ -225,6 +259,8 @@ const std::vector<RigidBody>& WorldPhysics::getBodies() const {
 
 void WorldPhysics::runPhysics(const TimeManager& TIME)
 {
+    applyGlobalForces();
+
     //First step numerical integration
     for (size_t i = 0; i < bodies.size(); i++) {
         bodies[i].numericalIntegration(TIME.fixedDeltaTime);
@@ -314,7 +350,6 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
 
     //Final step, border check
     for (size_t i = 0; i < bodies.size(); i++) {
-        borderCheck(bodies[i]);
+        borderCheck(bodies[i], TIME.fixedDeltaTime);
     }
 }
-

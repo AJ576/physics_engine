@@ -4,6 +4,7 @@
 #pragma once
 #include <array>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -40,7 +41,7 @@ public:
     bool processEvents();
     void updateSize(int width, int height);
 
-    void printPhysicsInfo(const std::vector<RigidBody>& bodies);
+    void printPhysicsInfo(const std::vector<RigidBody>& bodies,double gravityY);
 
     // optional helper
     double getFPS() const { return fps_; }

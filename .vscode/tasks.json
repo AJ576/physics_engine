@@ -1,0 +1,23 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "cmake-configure-build-release",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"-S",
+				".",
+				"-B",
+				"build",
+				"-DCMAKE_BUILD_TYPE=Release",
+				"&&",
+				"cmake",
+				"--build",
+				"build",
+				"-j"
+			],
+			"isBackground": false
+		}
+	]
+}
