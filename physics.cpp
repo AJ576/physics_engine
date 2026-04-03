@@ -222,14 +222,24 @@ void WorldPhysics::borderCheck(RigidBody& body1, double dt) {
             continue;
         }
 
-        bool movingWithGravity = gravity_[i] != 0.0 && (vel[i] * gravity_[i] > 0.0);
-        double restingVelocityThreshold = std::abs(gravity_[i]) * dt;
-        bool slowEnoughToRest = std::abs(vel[i]) <= restingVelocityThreshold;
+        // Check if this axis has gravity
+        bool hasGravity = gravity_[i] != 0.0;
 
-        if (movingWithGravity && slowEnoughToRest) {
-            pos[i] = bound;
-            vel[i] = 0.0;
+        if (hasGravity) {
+            // Gravity-aligned axis: use settling logic
+            bool movingWithGravity = vel[i] * gravity_[i] > 0.0;
+            double restingVelocityThreshold = std::abs(gravity_[i]) * dt;
+            bool slowEnoughToRest = std::abs(vel[i]) <= restingVelocityThreshold;
+
+            if (movingWithGravity && slowEnoughToRest) {
+                pos[i] = bound;
+                vel[i] = 0.0;
+            } else {
+                vel[i] = -vel[i] * e;
+            }
         } else {
+            // Non-gravity axis: simple snap-back
+            pos[i] = bound;
             vel[i] = -vel[i] * e;
         }
     }
