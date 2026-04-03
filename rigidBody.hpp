@@ -20,6 +20,9 @@ class RigidBody {
         std::array<double, 2> velocity_; // m/s
         std::array<double, 2> acceleration_; // m/s^2
         std::array<double, 2> force_; // N
+        std::array<int, 4> color_; // RGBA based on speed magnitude
+
+        void updateColorFromSpeed();
 
     public:
         // Constructor
@@ -34,6 +37,7 @@ class RigidBody {
         std::array<double, 2> getVelocity() const { return velocity_; }
         std::array<double, 2> getAcceleration() const { return acceleration_; }
         std::array<double, 2> getForce() const { return force_; }
+        std::array<int, 4> getColor() const { return color_; }
 
         // Setters
         void setRadius(double radius) { radius_ = radius; }
@@ -42,15 +46,24 @@ class RigidBody {
             invMass_ = (mass > 0.0) ? (1.0 / mass) : 0.0;
         }
         void setPosition(const std::array<double, 2>& position) { position_ = position; }
-        void setVelocity(const std::array<double, 2>& velocity) { velocity_ = velocity; }
+        void setVelocity(const std::array<double, 2>& velocity) {
+            velocity_ = velocity;
+            updateColorFromSpeed();
+        }
         void setAcceleration(const std::array<double, 2>& acceleration) { acceleration_ = acceleration; }
         void setForce(const std::array<double, 2>& force) { force_ = force; }
 
         // Individual component setters cuz we lazy
         void setPositionX(double x) { position_[0] = x; }
         void setPositionY(double y) { position_[1] = y; }
-        void setVelocityX(double vx) { velocity_[0] = vx; }
-        void setVelocityY(double vy) { velocity_[1] = vy; }
+        void setVelocityX(double vx) {
+            velocity_[0] = vx;
+            updateColorFromSpeed();
+        }
+        void setVelocityY(double vy) {
+            velocity_[1] = vy;
+            updateColorFromSpeed();
+        }
         void setForceX(double fx) { force_[0] = fx; }
         void setForceY(double fy) { force_[1] = fy; }
 
