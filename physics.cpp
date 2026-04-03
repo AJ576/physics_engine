@@ -222,17 +222,15 @@ void WorldPhysics::borderCheck(RigidBody& body1, double dt) {
             continue;
         }
 
-        double reversedVelocity = -vel[i] * e;
-        double outwardVelocity = normal * reversedVelocity;
-        double outwardAcceleration = normal * acc[i];
+        bool movingWithGravity = gravity_[i] != 0.0 && (vel[i] * gravity_[i] > 0.0);
+        double restingVelocityThreshold = std::abs(gravity_[i]) * dt;
+        bool slowEnoughToRest = std::abs(vel[i]) <= restingVelocityThreshold;
 
-        double escapeDistance = outwardVelocity * dt + 0.5 * outwardAcceleration * dt * dt;
-
-        if (escapeDistance > penetration) {
-            vel[i] = reversedVelocity;
-        } else {
+        if (movingWithGravity && slowEnoughToRest) {
             pos[i] = bound;
             vel[i] = 0.0;
+        } else {
+            vel[i] = -vel[i] * e;
         }
     }
     
