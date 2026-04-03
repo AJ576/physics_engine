@@ -42,7 +42,7 @@ class WorldPhysics {
         void calculateForce(RigidBody& body1, RigidBody& body2);
         void calculateImpulse(RigidBody& body1, RigidBody& body2, double nx, double ny);
         void resolveCollision(RigidBody& b1, RigidBody& b2);
-        void borderCheck(RigidBody& body1);
+        void borderCheck(RigidBody& body1, double dt);
 
     public:
         WorldPhysics(std::array<double, 2> border);

@@ -1,7 +1,6 @@
 #include "physics.hpp"
 #include <iostream>
 #include <cmath>
-#include <algorithm> // std::clamp
 
 extern double springConstant; // N/m
 extern double e; // coefficient of restitution
@@ -45,6 +44,21 @@ void TimeManager::reset() {
 
 // WorldPhysics method implementations
 WorldPhysics::WorldPhysics(std::array<double, 2> border) : border_(border) {}
+
+void WorldPhysics::applyGlobalForces()
+{
+    for (size_t i = 0; i < bodies.size(); ++i)
+    {
+        if (bodies[i].getInvMass() == 0.0) {
+            continue;
+        }
+
+        auto force = bodies[i].getForce();
+        force[0] += bodies[i].getMass() * gravity_[0];
+        force[1] += bodies[i].getMass() * gravity_[1];
+        bodies[i].setForce(force);
+    }
+}
 
 // Free function implementations -> WorldPhysics method implementations
 bool WorldPhysics::areColliding(const RigidBody& body1, const RigidBody& body2,
@@ -181,57 +195,47 @@ void WorldPhysics::resolveCollision(RigidBody& b1, RigidBody& b2)
     // after positional correction, resolve velocity with impulse
     calculateImpulse(b1, b2, nx, ny);
 }
-void WorldPhysics::borderCheck(RigidBody& body)
-{
-    const double radius = body.getRadius();
-    auto pos = body.getPosition();
-    auto vel = body.getVelocity();
 
-    const double restitution = e;
+void WorldPhysics::borderCheck(RigidBody& body1, double dt) {
+    double radius = body1.getRadius();
+    std::array<double, 2> pos = body1.getPosition();
+    std::array<double, 2> vel = body1.getVelocity();
+    std::array<double, 2> acc = body1.getAcceleration();
 
-    constexpr double slop = 0.001;
-    constexpr double percent = 0.8;
-    constexpr double maxCorrection = 0.1; // max positional correction per frame
-    constexpr double lowSpeedThreshold = 5.0; // speed below which we apply correction
-
-    // compute velocity along gravity
-    double vAlongGravity = vel[0] * gravity_[0] + vel[1] * gravity_[1];
-    double gMagSq = gravity_[0]*gravity_[0] + gravity_[1]*gravity_[1];
-    double vRel = (gMagSq > 0.0) ? std::abs(vAlongGravity) / std::sqrt(gMagSq) : 0.0;
-
-    for (int i = 0; i < 2; ++i)
-    {
+    for (int i = 0; i < 2; ++i) {
         double minBound = radius;
         double maxBound = border_[i] - radius;
 
         double penetration = 0.0;
         double normal = 0.0;
+        double bound = 0.0;
 
         if (pos[i] < minBound) {
             penetration = minBound - pos[i];
             normal = +1.0;
+            bound = minBound;
         } else if (pos[i] > maxBound) {
             penetration = pos[i] - maxBound;
             normal = -1.0;
+            bound = maxBound;
         } else {
             continue;
         }
 
-        // apply positional correction only if relative speed along gravity is low
-        double correction = 0.0;
-        if (vRel < lowSpeedThreshold) {
-            correction = std::min(std::max(penetration - slop, 0.0) * percent, maxCorrection);
-            pos[i] += normal * correction;
-        }
+        bool movingWithGravity = gravity_[i] != 0.0 && (vel[i] * gravity_[i] > 0.0);
+        double restingVelocityThreshold = std::abs(gravity_[i]) * dt;
+        bool slowEnoughToRest = std::abs(vel[i]) <= restingVelocityThreshold;
 
-        // always apply velocity impulse to bounce high-speed impacts
-        if ((vel[i] * normal) < 0.0) {
-            vel[i] = -vel[i] * restitution;
+        if (movingWithGravity && slowEnoughToRest) {
+            pos[i] = bound;
+            vel[i] = 0.0;
+        } else {
+            vel[i] = -vel[i] * e;
         }
     }
-
-    body.setPosition(pos);
-    body.setVelocity(vel);
+    
+    body1.setPosition(pos);
+    body1.setVelocity(vel);
 }
 void WorldPhysics::addBody(const RigidBody& body) {
     bodies.push_back(body);
@@ -253,21 +257,8 @@ const std::vector<RigidBody>& WorldPhysics::getBodies() const {
     return bodies;
 }
 
-void WorldPhysics::applyGlobalForces()
-{
-    for (size_t i = 0; i < bodies.size(); ++i) {
-        if (bodies[i].getInvMass() == 0.0) continue;
-
-        auto f = bodies[i].getForce();
-        f[0] += bodies[i].getMass() * gravity_[0];
-        f[1] += bodies[i].getMass() * gravity_[1];
-        bodies[i].setForce(f);
-    }
-}
-
 void WorldPhysics::runPhysics(const TimeManager& TIME)
 {
-    // Clean gravity hook
     applyGlobalForces();
 
     //First step numerical integration
@@ -280,7 +271,7 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
     grid.clear();
 
     //rebuild the grid
-    for (size_t i = 0; i < bodies.size(); i++)
+    for (size_t i = 0; i<bodies.size(); i++)
     {
         //get poistion and thus the cell val
         double x = bodies[i].getPosition()[0];
@@ -293,6 +284,14 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
 
         grid[key].push_back(&bodies[i]);
     }
+
+    // //do this AFTER numerical integration
+    // for (size_t i = 0; i < bodies.size(); i++) {
+    //     for (size_t j = i+1; j < bodies.size(); j++) {
+    //         resolveCollision(bodies[i], bodies[j]);
+    //         //calculateForce(bodies[i], bodies[j]); //DO NOT USE CALC FORCE
+    //     }
+    // }
 
     //check for spring collisions
     for (size_t i = 0; i < bodies.size(); i++) {
@@ -349,8 +348,8 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
         }   
     }
 
-    // Final step, border check
+    //Final step, border check
     for (size_t i = 0; i < bodies.size(); i++) {
-        borderCheck(bodies[i]);
+        borderCheck(bodies[i], TIME.fixedDeltaTime);
     }
 }
