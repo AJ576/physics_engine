@@ -18,7 +18,7 @@ int main()
     srand(time(0));
     
     // Number of random bodies to create
-    int randomBodyCount = 10000;
+    int randomBodyCount = 5000;
     
     // Generate n random bodies
     for (int i = 0; i < randomBodyCount; i++) {
@@ -34,7 +34,7 @@ int main()
         double velY = -5.0 + (rand() / (double)RAND_MAX)*100 ;
         // Make radius proportional to mass
         // radius = sqrt(mass / π) * scale_factor
-        double radius = sqrt(mass / M_PI)/5;
+        double radius = sqrt(mass / M_PI)/2;
         world.addBody(RigidBody(radius, mass, {posX, posY}, {velX, velY}));
     }
         
@@ -156,7 +156,10 @@ int main()
         }
 
         // Display informational text (Energy, Momentum, etc.)
-        graphics.printPhysicsInfo(bodies,world.getGravity()[1]);
+        graphics.printPhysicsInfo(
+            bodies,
+            world.getGravity()
+        );
 
         // Present the frame
         graphics.present();

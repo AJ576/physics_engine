@@ -1,5 +1,6 @@
 #include "graphics.hpp"
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -131,7 +132,7 @@ void Graphics::updateSize(int width, int height)
     windowWidth = width;
 }
 
-void Graphics::printPhysicsInfo(const std::vector<RigidBody>& bodies, double gravityY) {
+void Graphics::printPhysicsInfo(const std::vector<RigidBody>& bodies, const std::array<double, 2>& gravity) {
     if (!font) return;
 
     // hide info text on very small windows
@@ -147,7 +148,12 @@ void Graphics::printPhysicsInfo(const std::vector<RigidBody>& bodies, double gra
         const double m = body.getMass();
 
         totalKE += 0.5 * m * (v[0] * v[0] + v[1] * v[1]);
-        totalPE += m * (-gravityY) * p[1];  // PE = m*g*h (assuming g points down)
+
+        if (gravity[0] != 0.0) {
+            totalPE += m * (-gravity[0]) * p[0];
+        } else if (gravity[1] != 0.0) {
+            totalPE += m * (-gravity[1]) * p[1];
+        }
     }
 
     // Relative placement

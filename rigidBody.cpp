@@ -4,7 +4,7 @@
 #include <iostream>
 
 double springConstant = 100.0; // N/m - initialized with default value
-double e = 0.5; //coefficent of restitution should be 1 for perfectly elastic collision
+double e = 0.7; //coefficent of restitution should be 1 for perfectly elastic collision
 
 void RigidBody::updateColorFromSpeed() {
     const double vx = velocity_[0];

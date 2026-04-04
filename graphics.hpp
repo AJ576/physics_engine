@@ -41,7 +41,7 @@ public:
     bool processEvents();
     void updateSize(int width, int height);
 
-    void printPhysicsInfo(const std::vector<RigidBody>& bodies,double gravityY);
+    void printPhysicsInfo(const std::vector<RigidBody>& bodies, const std::array<double, 2>& gravity);
 
     // optional helper
     double getFPS() const { return fps_; }

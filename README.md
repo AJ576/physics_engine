@@ -1,100 +1,92 @@
 # Physics Engine
 
-A 2D physics simulation built with C++ and SDL2. It simulates rigid bodies (circles) with gravity, collision detection, and spring-based platforms. The window displays real-time physics stats like total energy and momentum.
+A real-time 2D rigid-body physics sandbox built with C++17, SDL2, and SDL2_ttf.
 
-## Features
+This project simulates thousands of circular bodies with fixed-timestep integration,
+impulse-based collisions, border interactions, runtime gravity control, and live
+on-screen metrics (FPS, kinetic energy, potential energy, total energy).
 
-- **Rigid body dynamics** — Circles with mass, velocity, and elastic collisions
-- **Spring platforms** — Bouncy ground surfaces that compress under impact
-- **Wall collisions** — Balls bounce off the window borders
-- **Fixed timestep physics** — 60 Hz simulation for stable, deterministic behavior
-- **Resizable window** — Physics and graphics update when you resize
+## Current Feature Set (Spring Features Ignored)
+
+- High body-count simulation (default: `5000` circles)
+- Circle-circle collision detection and impulse resolution
+- Spatial grid broad-phase for faster collision checks
+- Fixed `60 Hz` physics stepping via accumulator
+- Runtime gravity toggle and direction switching
+- Border collision handling with restitution and gravity-aware settling
+- Window resize support with physics-border + renderer sync
+- Per-body speed-based color gradient rendering
+- Real-time HUD: FPS, total KE, total PE, total energy
+
+## Controls
+
+- `Esc` - Quit
+- `G` - Toggle gravity ON/OFF
+- Arrow keys (`Up`, `Down`, `Left`, `Right`) - Change gravity direction (when gravity is ON)
+- Window resize - Updates simulation bounds dynamically
 
 ## Dependencies
 
-- **SDL2** — Windowing and rendering
-- **SDL2_ttf** — Text rendering for on-screen physics info
+- `CMake` (3.16+)
+- `C++17` compiler (`clang++`/`g++`)
+- `SDL2`
+- `SDL2_ttf`
 
-### Installing Dependencies
+### Install Dependencies
 
-**macOS (Homebrew):**
-```bash
-brew install sdl2 sdl2_ttf
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt install libsdl2-dev libsdl2-ttf-dev
-```
-
-**Fedora:**
-```bash
-sudo dnf install SDL2-devel SDL2_ttf-devel
-```
-
-## Building with CMake
-
-### Quick start
+#### macOS (Homebrew)
 
 ```bash
-mkdir -p build
-cd build
-cmake ..
-cmake --build .
+brew install sdl2 sdl2_ttf cmake
 ```
 
-### What this does
-
-1. **`mkdir -p build`** — Creates a build directory so generated files (object files, Makefiles, etc.) stay separate from source code.
-
-2. **`cmake ..`** — Configures the project. CMake finds your compiler, SDL2, SDL2_ttf, and generates native build files (Makefiles on Unix, or project files for IDEs).
-
-3. **`cmake --build .`** — Compiles the project. Only changed files are recompiled on subsequent runs.
-
-### Alternative: one-line build
+#### Ubuntu/Debian
 
 ```bash
-cd build && cmake .. && cmake --build .
+sudo apt update
+sudo apt install -y cmake g++ libsdl2-dev libsdl2-ttf-dev
 ```
 
-### Clean rebuild
-
-To start from scratch (e.g. after dependency changes):
+#### Fedora
 
 ```bash
-rm -rf build
-mkdir build && cd build
-cmake ..
-cmake --build .
+sudo dnf install cmake gcc-c++ SDL2-devel SDL2_ttf-devel
 ```
 
-## Running the engine
+## Build
 
-After building, run:
+From project root:
 
 ```bash
-./physics_engine
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
 ```
 
-Or from the project root:
+## Run
 
 ```bash
 ./build/physics_engine
 ```
 
-### Controls
+## Notes on Simulation Behavior
 
-- **ESC** — Quit
-- **Close window** — Quit
-- **Resize window** — Physics world resizes; balls bounce off the new borders
+- Coordinate system uses physics-space `+Y` upward (renderer flips Y for SDL draw coordinates)
+- Gravity is off at startup (`{0, 0}`) and can be enabled at runtime
+- Collision response uses global restitution `e = 0.5`
+- Circle radius is derived from mass in `main.cpp`
 
-## Project structure
+## Project Layout
 
 | File | Purpose |
-|------|---------|
-| `main.cpp` | Entry point, main loop, event handling |
-| `physics.hpp` / `physics.cpp` | World physics, collision, fixed timestep |
-| `rigidBody.hpp` / `rigidBody.cpp` | Circle rigid bodies with mass and velocity |
-| `spring.hpp` / `spring.cpp` | Spring platforms for bouncing |
-| `graphics.hpp` / `graphics.cpp` | SDL2 rendering and text overlay |
-| `CMakeLists.txt` | CMake build configuration |
+|---|---|
+| `main.cpp` | App setup, random body generation, input handling, game loop |
+| `physics.hpp` / `physics.cpp` | Time manager, world update, collision system, border handling |
+| `rigidBody.hpp` / `rigidBody.cpp` | Rigid body state, force integration, speed-based coloring |
+| `graphics.hpp` / `graphics.cpp` | SDL window/renderer setup, circle rendering, HUD text |
+| `CMakeLists.txt` | Build configuration and SDL dependency linking |
+
+## Performance Tips
+
+- Start with fewer bodies (edit `randomBodyCount` in `main.cpp`) if your machine struggles
+- Release builds (`-DCMAKE_BUILD_TYPE=Release`) are much faster than debug builds
+- VSync is enabled in renderer creation, so FPS may be display-limited
