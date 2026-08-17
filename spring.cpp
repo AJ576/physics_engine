@@ -101,38 +101,23 @@ bool detectSpringHit(const RigidBody& ball, const Spring& spring, bool& hitFromA
 void applySpringImpulse(RigidBody& ball, Spring& spring, bool hitFromAbove) {
     auto vel = ball.getVelocity();
     double r = ball.getRadius();
-    double springTop = spring.getCurrentTop();
-    double springBottom = spring.getY();
+    double ballBottom = pos[1] - r;
+    double springTop = spring.getY() + spring.getHeight();
 
-    if (hitFromAbove) {
-        // Ball hit the top face of the spring.
+    double compression = springTop - ballBottom;
+
+    if (compression > 0 && vel[1] < 0) {
         double impactSpeed = -vel[1];
 
-        // Slow downward contact: just rest on the spring instead of bouncing,
-        // so it does not jitter forever on tiny impacts.
-        if (impactSpeed < 1.0) {
-            ball.setPositionY(springTop + r);
-            if (vel[1] < 0.0) {
-                ball.setVelocityY(0.0);
-            }
-            return;
-        }
+        // Energy-return (restitution) coefficient in [0, 1].
+        // The spring compresses on impact, stores the ball's kinetic energy,
+        // and puts it back on release. A stiffer spring (higher K) returns
+        // more of the impact energy. It is capped at 1.0 so the spring can
+        // never add energy to the system: the rebound speed is at most the
+        // impact speed, so only energy the ball already had is regained.
+        double restitution = std::min(1.0, spring.getSpringConstant() * compression * 0.1);
 
-        // Physically-motivated max compression of a mass m hitting a spring
-        // with constant k at speed v: x = v * sqrt(m / k).
-        double compressionDepth = impactSpeed * std::sqrt(ball.getMass() / spring.getSpringConstant());
-        spring.compress(compressionDepth);
-
-        // Resolve the position so the ball is not partially inside the spring.
-        ball.setPositionY(spring.getCurrentTop() + r);
-
-        // Return the stored impact energy back to the ball.
-        ball.setVelocityY(impactSpeed * spring.getRestitution());
-    } else {
-        // Ball hit the bottom face of the spring (e.g. upward gravity).
-        ball.setPositionY(springBottom - r);
-        if (vel[1] > 0.0) {
-            ball.setVelocityY(-vel[1] * spring.getRestitution());
-        }
+        ball.setVelocityY(impactSpeed * restitution);
+        ball.setPositionY(springTop + r);
     }
 }
