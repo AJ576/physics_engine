@@ -1,5 +1,4 @@
 #include "physics.hpp"
-#include <iostream>
 #include <cmath>
 
 extern double springConstant; // N/m
@@ -304,10 +303,17 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
     // }
 
     //check for spring collisions
+    // First relax each spring back toward its resting height, then test the
+    // bodies against the (possibly compressed) current top surface.
+    for (auto& spring : springs_) {
+        spring.update(TIME.fixedDeltaTime);
+    }
+
     for (size_t i = 0; i < bodies.size(); i++) {
-        for (const auto& spring : springs_) {
-            if (isBallOnSpring(bodies[i], spring)) {
-                applySpringImpulse(bodies[i], spring);
+        for (auto& spring : springs_) {
+            bool hitFromAbove = true;
+            if (detectSpringHit(bodies[i], spring, hitFromAbove)) {
+                applySpringImpulse(bodies[i], spring, hitFromAbove);
             }
         }
     }

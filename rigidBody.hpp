@@ -3,7 +3,6 @@
 #pragma once // read once per programam.
 #include <array>
 #include <chrono>
-#include <vector>
 
 using Clock = std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<Clock>;
@@ -17,6 +16,7 @@ class RigidBody {
         double mass_; // kg
         double invMass_; // 1/kg (inverse mass for physics calculations)
         std::array<double, 2> position_; // m
+        std::array<double, 2> prevPosition_; // m (position before last integration step, for swept collision detection)
         std::array<double, 2> velocity_; // m/s
         std::array<double, 2> acceleration_; // m/s^2
         std::array<double, 2> force_; // N
@@ -34,6 +34,7 @@ class RigidBody {
         double getMass() const { return mass_; }
         double getInvMass() const { return invMass_; }
         std::array<double, 2> getPosition() const { return position_; }
+        std::array<double, 2> getPrevPosition() const { return prevPosition_; }
         std::array<double, 2> getVelocity() const { return velocity_; }
         std::array<double, 2> getAcceleration() const { return acceleration_; }
         std::array<double, 2> getForce() const { return force_; }
