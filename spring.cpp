@@ -24,8 +24,17 @@ void applySpringImpulse(RigidBody& ball, const Spring& spring) {
     double compression = springTop - ballBottom;
 
     if (compression > 0 && vel[1] < 0) {
-        double bounceStrength = 1.0 + spring.getSpringConstant() * compression * 0.1;
-        ball.setVelocityY(-vel[1] * std::min(bounceStrength, 2.0));
+        double impactSpeed = -vel[1];
+
+        // Energy-return (restitution) coefficient in [0, 1].
+        // The spring compresses on impact, stores the ball's kinetic energy,
+        // and puts it back on release. A stiffer spring (higher K) returns
+        // more of the impact energy. It is capped at 1.0 so the spring can
+        // never add energy to the system: the rebound speed is at most the
+        // impact speed, so only energy the ball already had is regained.
+        double restitution = std::min(1.0, spring.getSpringConstant() * compression * 0.1);
+
+        ball.setVelocityY(impactSpeed * restitution);
         ball.setPositionY(springTop + r);
     }
 }
