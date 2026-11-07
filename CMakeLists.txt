@@ -21,20 +21,30 @@ if(APPLE AND HOMEBREW_PREFIX)
     list(APPEND EXTRA_INCLUDES "${HOMEBREW_PREFIX}/include")
 endif()
 
-# Source files
-set(SOURCES
-    main.cpp
+# Core physics library (pure simulation, no SDL dependencies)
+add_library(physics_core STATIC
     physics.cpp
-    graphics.cpp
     rigidBody.cpp
     spring.cpp
 )
 
-add_executable(physics_engine ${SOURCES})
+target_include_directories(physics_core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Main executable (with SDL graphics)
+add_executable(physics_engine
+    main.cpp
+    graphics.cpp
+)
 
 target_include_directories(physics_engine PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${EXTRA_INCLUDES}
+)
+
+target_link_libraries(physics_engine PRIVATE
+    physics_core
 )
 
 # Link SDL2 libraries - use imported targets when available, else fallback
@@ -51,3 +61,32 @@ else()
     target_include_directories(physics_engine PRIVATE ${SDL2_TTF_INCLUDE_DIRS})
     target_link_libraries(physics_engine PRIVATE ${SDL2_TTF_LIBRARY})
 endif()
+
+# Physics correctness unit tests
+add_executable(physics_tests
+    tests/test_physics.cpp
+)
+
+target_include_directories(physics_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(physics_tests PRIVATE
+    physics_core
+)
+
+# Performance Benchmark Suite
+add_executable(benchmark_suite
+    benchmarks/benchmark_suite.cpp
+)
+
+target_include_directories(benchmark_suite PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(benchmark_suite PRIVATE
+    physics_core
+)
+
+enable_testing()
+add_test(NAME PhysicsCorrectnessTests COMMAND physics_tests)

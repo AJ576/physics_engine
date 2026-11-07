@@ -10,6 +10,12 @@ using TimePoint = std::chrono::time_point<Clock>;
 using Duration = std::chrono::duration<double>;
 
 extern double springConstant; // N/m
+extern double e; // coefficient of restitution
+
+inline void setRestitution(double val) { e = val; }
+inline double getRestitution() { return e; }
+inline void setSpringConstant(double val) { springConstant = val; }
+inline double getSpringConstant() { return springConstant; }
 
 class RigidBody {
     private:

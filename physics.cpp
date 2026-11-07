@@ -1,9 +1,18 @@
 #include "physics.hpp"
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 
 extern double springConstant; // N/m
 extern double e; // coefficient of restitution
+
+// Pack two signed cell coordinates into one 64-bit grid key. Done through
+// unsigned types so negative coordinates (bodies briefly past the left or
+// bottom wall) do not left-shift a negative value, which is UB before C++20.
+static inline long long cellKey(int x, int y)
+{
+    return (long long)(((unsigned long long)(unsigned int)x << 32) | (unsigned int)y);
+}
 
 // TimeManager method implementations
 TimeManager::TimeManager(){
@@ -153,13 +162,13 @@ void WorldPhysics::calculateImpulse(RigidBody& body1, RigidBody& body2, double n
     body2.setVelocityY(vel2[1] + ((j * body2.getInvMass()) * ny));
 }
 
-void WorldPhysics::resolveCollision(RigidBody& b1, RigidBody& b2)
+bool WorldPhysics::resolveCollision(RigidBody& b1, RigidBody& b2)
 {
     double nx = 0.0, ny = 0.0, overlap = 0.0;
 
     // if not colliding, return immediately
     if (!areColliding(b1, b2, nx, ny, overlap)) {
-        return;
+        return false;
     }
 
     std::array<double, 2> pos1 = b1.getPosition();
@@ -171,7 +180,7 @@ void WorldPhysics::resolveCollision(RigidBody& b1, RigidBody& b2)
     //we cooked if this happens
     if(invMassSum == 0)
     {
-        return;
+        return false;
     }
 
     //now move them along the normal based on their respective masses.
@@ -194,13 +203,13 @@ void WorldPhysics::resolveCollision(RigidBody& b1, RigidBody& b2)
 
     // after positional correction, resolve velocity with impulse
     calculateImpulse(b1, b2, nx, ny);
+    return true;
 }
 
 void WorldPhysics::borderCheck(RigidBody& body1, double dt) {
     double radius = body1.getRadius();
     std::array<double, 2> pos = body1.getPosition();
     std::array<double, 2> vel = body1.getVelocity();
-    std::array<double, 2> acc = body1.getAcceleration();
 
     for (int i = 0; i < 2; ++i) {
         double minBound = radius;
@@ -228,19 +237,41 @@ void WorldPhysics::borderCheck(RigidBody& body1, double dt) {
         if (hasGravity) {
             // Gravity-aligned axis: use settling logic
             bool movingWithGravity = vel[i] * gravity_[i] > 0.0;
-            double restingVelocityThreshold = std::abs(gravity_[i]) * dt;
+            // With a fixed timestep, a body resting on the floor hits it at
+            // roughly g*dt to 1.5*g*dt every step, so a threshold of exactly
+            // g*dt leaves it hopping forever. 2*g*dt lets it settle.
+            double restingVelocityThreshold = 2.0 * std::abs(gravity_[i]) * dt;
             bool slowEnoughToRest = std::abs(vel[i]) <= restingVelocityThreshold;
 
             if (movingWithGravity && slowEnoughToRest) {
                 pos[i] = bound;
                 vel[i] = 0.0;
             } else {
-                vel[i] = -vel[i] * e;
+                // Always push back out of the wall, and only bounce if the
+                // body is moving INTO the wall. Otherwise a body that was
+                // pushed into the floor (e.g. by a pile above it) and is
+                // already moving out would get flipped back in.
+                pos[i] = bound;
+                if (vel[i] * normal < 0.0) {
+                    double speed = std::abs(vel[i]);
+                    if (movingWithGravity) {
+                        // The body overshot the wall by `penetration` and
+                        // gained speed doing so. Use the speed it had when it
+                        // actually touched the wall (v_c^2 = v^2 - 2 g d);
+                        // otherwise every bounce injects a little energy and
+                        // the body hops forever instead of settling.
+                        double vc2 = speed * speed - 2.0 * std::abs(gravity_[i]) * penetration;
+                        speed = std::sqrt(std::max(0.0, vc2));
+                    }
+                    vel[i] = normal * speed * e;
+                }
             }
         } else {
-            // Non-gravity axis: simple snap-back
+            // Non-gravity axis: snap back, bounce only if moving into the wall
             pos[i] = bound;
-            vel[i] = -vel[i] * e;
+            if (vel[i] * normal < 0.0) {
+                vel[i] = -vel[i] * e;
+            }
         }
     }
     
@@ -251,8 +282,17 @@ void WorldPhysics::addBody(const RigidBody& body) {
     bodies.push_back(body);
 }
 
+void WorldPhysics::clearBodies() {
+    bodies.clear();
+    grid.clear();
+}
+
 void WorldPhysics::addSpring(const Spring& spring) {
     springs_.push_back(spring);
+}
+
+void WorldPhysics::clearSprings() {
+    springs_.clear();
 }
 
 const std::vector<Spring>& WorldPhysics::getSprings() const {
@@ -265,6 +305,45 @@ std::vector<RigidBody>& WorldPhysics::getBodies() {
 
 const std::vector<RigidBody>& WorldPhysics::getBodies() const {
     return bodies;
+}
+
+double WorldPhysics::calculateTotalKineticEnergy() const {
+    double totalKE = 0.0;
+    for (const auto& b : bodies) {
+        auto v = b.getVelocity();
+        totalKE += 0.5 * b.getMass() * (v[0] * v[0] + v[1] * v[1]);
+    }
+    return totalKE;
+}
+
+double WorldPhysics::calculateTotalPotentialEnergy() const {
+    double totalPE = 0.0;
+    for (const auto& b : bodies) {
+        auto p = b.getPosition();
+        double m = b.getMass();
+        if (gravity_[0] != 0.0) {
+            totalPE += m * (-gravity_[0]) * p[0];
+        }
+        if (gravity_[1] != 0.0) {
+            totalPE += m * (-gravity_[1]) * p[1];
+        }
+    }
+    return totalPE;
+}
+
+double WorldPhysics::calculateTotalEnergy() const {
+    return calculateTotalKineticEnergy() + calculateTotalPotentialEnergy();
+}
+
+std::array<double, 2> WorldPhysics::calculateTotalMomentum() const {
+    std::array<double, 2> totalP = {0.0, 0.0};
+    for (const auto& b : bodies) {
+        auto v = b.getVelocity();
+        double m = b.getMass();
+        totalP[0] += m * v[0];
+        totalP[1] += m * v[1];
+    }
+    return totalP;
 }
 
 void WorldPhysics::runPhysics(const TimeManager& TIME)
@@ -290,18 +369,10 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
         int cell_x = (int)std::floor(x / grid_size);
         int cell_y = (int)std::floor(y / grid_size);
 
-        long long key = ((long long)cell_x << 32) | (unsigned int)cell_y;
+        long long key = cellKey(cell_x, cell_y);
 
         grid[key].push_back(&bodies[i]);
     }
-
-    // //do this AFTER numerical integration
-    // for (size_t i = 0; i < bodies.size(); i++) {
-    //     for (size_t j = i+1; j < bodies.size(); j++) {
-    //         resolveCollision(bodies[i], bodies[j]);
-    //         //calculateForce(bodies[i], bodies[j]); //DO NOT USE CALC FORCE
-    //     }
-    // }
 
     //check for spring collisions
     for (size_t i = 0; i < bodies.size(); i++) {
@@ -339,7 +410,7 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
             int nx = x + off[0];
             int ny = y + off[1];
             //make key to access the cell
-            long long nkey = ((long long)nx << 32) | (unsigned int)ny;
+            long long nkey = cellKey(nx, ny);
             //if key exists
             auto it = grid.find(nkey);
             if (it != grid.end())
@@ -362,4 +433,193 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
     for (size_t i = 0; i < bodies.size(); i++) {
         borderCheck(bodies[i], TIME.fixedDeltaTime);
     }
+}
+
+void WorldPhysics::runPhysicsNaive(const TimeManager& TIME)
+{
+    applyGlobalForces();
+
+    for (size_t i = 0; i < bodies.size(); i++) {
+        bodies[i].numericalIntegration(TIME.fixedDeltaTime);
+    }
+
+    for (size_t i = 0; i < bodies.size(); i++) {
+        for (const auto& spring : springs_) {
+            if (isBallOnSpring(bodies[i], spring)) {
+                applySpringImpulse(bodies[i], spring);
+            }
+        }
+    }
+
+    for (size_t i = 0; i < bodies.size(); i++) {
+        for (size_t j = i + 1; j < bodies.size(); j++) {
+            resolveCollision(bodies[i], bodies[j]);
+        }
+    }
+
+    for (size_t i = 0; i < bodies.size(); i++) {
+        borderCheck(bodies[i], TIME.fixedDeltaTime);
+    }
+}
+
+StepProfile WorldPhysics::runPhysicsProfiled(const TimeManager& TIME)
+{
+    StepProfile profile;
+    auto startTotal = Clock::now();
+
+    // 1. Global Forces
+    auto t0 = Clock::now();
+    applyGlobalForces();
+    auto t1 = Clock::now();
+    profile.forcesTimeUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+    // 2. Numerical Integration
+    t0 = Clock::now();
+    for (size_t i = 0; i < bodies.size(); i++) {
+        bodies[i].numericalIntegration(TIME.fixedDeltaTime);
+    }
+    t1 = Clock::now();
+    profile.integrationTimeUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+    // 3. Grid Build
+    t0 = Clock::now();
+    grid.clear();
+    for (size_t i = 0; i < bodies.size(); i++) {
+        double x = bodies[i].getPosition()[0];
+        double y = bodies[i].getPosition()[1];
+
+        int cell_x = (int)std::floor(x / grid_size);
+        int cell_y = (int)std::floor(y / grid_size);
+
+        long long key = cellKey(cell_x, cell_y);
+        grid[key].push_back(&bodies[i]);
+    }
+    t1 = Clock::now();
+    profile.gridBuildTimeUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+    // 4. Springs
+    t0 = Clock::now();
+    for (size_t i = 0; i < bodies.size(); i++) {
+        for (const auto& spring : springs_) {
+            if (isBallOnSpring(bodies[i], spring)) {
+                applySpringImpulse(bodies[i], spring);
+            }
+        }
+    }
+    t1 = Clock::now();
+    profile.springTimeUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+    // 5. Grid Collision Checks
+    t0 = Clock::now();
+    int offsets[4][2] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+
+    for (auto& entry: grid)
+    {
+        long long key = entry.first;
+        std::vector<RigidBody*>& cell = entry.second;
+
+        int x = key >> 32;
+        int y = (int) (key & 0xFFFFFFFF);
+
+        for (size_t i = 0; i < cell.size(); i++)
+        {
+            for(size_t j = i + 1; j < cell.size(); j++)
+            {
+                profile.collisionPairsChecked++;
+                if (resolveCollision(*cell[i], *cell[j])) {
+                    profile.collisionsResolved++;
+                }
+            }
+        }
+
+        for (auto &off : offsets)
+        {
+            int nx = x + off[0];
+            int ny = y + off[1];
+            long long nkey = cellKey(nx, ny);
+            auto it = grid.find(nkey);
+            if (it != grid.end())
+            {
+                auto& ncell = it->second;
+                for (size_t i = 0; i < cell.size(); i++)
+                {
+                    for (size_t j = 0; j < ncell.size(); j++)
+                    {
+                        profile.collisionPairsChecked++;
+                        if (resolveCollision(*cell[i], *ncell[j])) {
+                            profile.collisionsResolved++;
+                        }
+                    }
+                }
+            }
+        }   
+    }
+    t1 = Clock::now();
+    profile.collisionTimeUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+    // 6. Border Check
+    t0 = Clock::now();
+    for (size_t i = 0; i < bodies.size(); i++) {
+        borderCheck(bodies[i], TIME.fixedDeltaTime);
+    }
+    t1 = Clock::now();
+    profile.borderTimeUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+    auto endTotal = Clock::now();
+    profile.totalTimeUs = std::chrono::duration<double, std::micro>(endTotal - startTotal).count();
+
+    return profile;
+}
+
+StepProfile WorldPhysics::runPhysicsNaiveProfiled(const TimeManager& TIME)
+{
+    StepProfile profile;
+    auto startTotal = Clock::now();
+
+    auto t0 = Clock::now();
+    applyGlobalForces();
+    auto t1 = Clock::now();
+    profile.forcesTimeUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+    t0 = Clock::now();
+    for (size_t i = 0; i < bodies.size(); i++) {
+        bodies[i].numericalIntegration(TIME.fixedDeltaTime);
+    }
+    t1 = Clock::now();
+    profile.integrationTimeUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+    t0 = Clock::now();
+    for (size_t i = 0; i < bodies.size(); i++) {
+        for (const auto& spring : springs_) {
+            if (isBallOnSpring(bodies[i], spring)) {
+                applySpringImpulse(bodies[i], spring);
+            }
+        }
+    }
+    t1 = Clock::now();
+    profile.springTimeUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+    t0 = Clock::now();
+    for (size_t i = 0; i < bodies.size(); i++) {
+        for (size_t j = i + 1; j < bodies.size(); j++) {
+            profile.collisionPairsChecked++;
+            if (resolveCollision(bodies[i], bodies[j])) {
+                profile.collisionsResolved++;
+            }
+        }
+    }
+    t1 = Clock::now();
+    profile.collisionTimeUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+    t0 = Clock::now();
+    for (size_t i = 0; i < bodies.size(); i++) {
+        borderCheck(bodies[i], TIME.fixedDeltaTime);
+    }
+    t1 = Clock::now();
+    profile.borderTimeUs = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+    auto endTotal = Clock::now();
+    profile.totalTimeUs = std::chrono::duration<double, std::micro>(endTotal - startTotal).count();
+
+    return profile;
 }
