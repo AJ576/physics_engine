@@ -74,10 +74,11 @@ void Graphics::drawSpring(const Spring& spring, const std::array<int, 4>& color)
     SDL_SetRenderDrawColor(renderer, (Uint8)color[0], (Uint8)color[1], (Uint8)color[2], (Uint8)color[3]);
     SDL_Rect rect;
     rect.x = (int)std::round(spring.getX());
-    // Physics y is up; SDL y is down — match drawCircle convention
-    rect.y = windowHeight - (int)std::round(spring.getY() + spring.getHeight());
+    // Physics y is up; SDL y is down — match drawCircle convention.
+    // Anchor the bottom at the ground (getY()) so only the top moves when compressed.
+    rect.y = windowHeight - (int)std::round(spring.getY() + spring.getCurrentHeight());
     rect.w = std::max(1, (int)std::round(spring.getWidth()));
-    rect.h = std::max(1, (int)std::round(spring.getHeight()));
+    rect.h = std::max(1, (int)std::round(spring.getCurrentHeight()));
     SDL_RenderFillRect(renderer, &rect);
 }
 

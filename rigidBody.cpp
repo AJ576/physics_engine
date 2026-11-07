@@ -1,7 +1,5 @@
 #include "rigidBody.hpp"
-#include <algorithm>
 #include <cmath>
-#include <iostream>
 
 double springConstant = 100.0; // N/m - initialized with default value
 double e = 0.7; //coefficent of restitution should be 1 for perfectly elastic collision
@@ -47,7 +45,7 @@ void RigidBody::updateColorFromSpeed() {
 RigidBody::RigidBody(double radius, double mass, 
                      std::array<double, 2> position,
                      std::array<double, 2> velocity)
-    : radius_(radius), position_(position), velocity_(velocity)
+    : radius_(radius), position_(position), prevPosition_(position), velocity_(velocity)
 {
     // Initialize mass and calculate inverse mass
     mass_ = mass;
@@ -65,6 +63,10 @@ void RigidBody::numericalIntegration(double dt) {
 
     acceleration_[0] = force_[0] * invMass_;
     acceleration_[1] = force_[1] * invMass_;
+
+    // Remember where we were this step so swept (tunneling-proof) collision
+    // detection can see what surfaces we crossed.
+    prevPosition_ = position_;
 
     // Use old velocity for position update (constant-accel kinematics)
     position_[0] += velocity_[0] * dt + 0.5 * acceleration_[0] * dt * dt;
