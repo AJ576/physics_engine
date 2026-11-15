@@ -130,3 +130,38 @@ almost every candidate (overlapping or separating), so skipping those calls
 saves little, while building path boxes for every body adds an O(N) pass.
 The cost is in scanning the cells around each fast body (about 9% of bodies
 per step in the gas scene). Reverted.
+
+## 5. Allocation-free step: warm-start impulse cache
+
+Test first: `tests/test_alloc.cpp` replaces the global `operator new` and counts
+allocations inside `World::step()` after warm-up. Before: 525,863 allocations
+in 120 steps for the 2,000-body pile (about 4,400 per step) and 22,175 for the
+5,000-body gas, almost all nodes of the `std::unordered_map` warm-start cache,
+which was cleared and refilled every step.
+
+**5a. Sorted vector + binary search (rejected).** Zero allocations and
+bit-identical results, but slower: 14 dependent random loads per lookup at
+about 17,000 contacts plus a sort per step.
+
+| Scene | N | before p50 | after p50 | median ratio | ratio range | verdict |
+|---|---:|---:|---:|---:|---|---|
+| pile | 5,000 | 8.158 ms | 9.007 ms | 1.111 | 1.064-1.200 | **slower** |
+| gas | 5,000 | 1.148 ms | 1.190 ms | 1.058 | 0.911-1.174 | within noise |
+| gas | 20,000 | 5.359 ms | 5.566 ms | 1.044 | 0.960-1.093 | within noise |
+
+**5b. Open-addressing hash table (kept).** Linear probing, power-of-two
+capacity at load factor 0.5 or less, entries invalidated by a generation
+counter instead of clearing, two tables swapped each step; capacity only
+grows. Zero allocations after warm-up (test passes: pile 0, gas 0) and
+bit-identical results (`--hash`, gas and pile, N = 5,000 and 20,000).
+
+| Scene | N | before p50 | after p50 | median ratio | ratio range | verdict |
+|---|---:|---:|---:|---:|---|---|
+| pile | 5,000 | 7.861 ms | 7.284 ms | 0.946 | 0.824-1.044 | within noise |
+| gas | 5,000 | 1.171 ms | 1.178 ms | 1.003 | 0.755-1.265 | within noise |
+| gas | 20,000 | 5.454 ms | 5.478 ms | 0.996 | 0.912-1.062 | within noise |
+
+Kept for the allocation property (no allocator calls inside a step, so no
+allocator-dependent latency), not for speed: the speed change is within
+noise. Raw: [5a pile](bench/opt/05a_sorted_pile.md), [5a gas](bench/opt/05a_sorted_gas.md),
+[5b pile](bench/opt/05b_flat_pile.md), [5b gas](bench/opt/05b_flat_gas.md).

@@ -21,7 +21,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <unordered_map>
 #include <vector>
 
 namespace phys {
@@ -232,7 +231,22 @@ private:
     std::vector<double> minToi_;
     std::vector<int> fast_;
     std::vector<char> isFast_;
-    std::unordered_map<std::uint64_t, Vec2> impulseCache_;  // (normal, tangent) by contact key
+    // Warm-start cache: last substep's impulses in an open-addressing hash
+    // table (linear probing, power-of-two size, generation stamps instead of
+    // clearing). Double-buffered; capacity only grows, so no step allocates.
+    struct CacheSlot {
+        std::uint64_t key = 0;
+        double normal = 0.0, tangent = 0.0;
+        std::uint32_t gen = 0;
+    };
+    struct ImpulseTable {
+        std::vector<CacheSlot> slots;
+        std::uint32_t gen = 0;
+        void reset(std::size_t entries);
+        void insert(std::uint64_t key, double normal, double tangent);
+        const CacheSlot* find(std::uint64_t key) const;
+    };
+    ImpulseTable impulseCache_, impulseNext_;
     StepStats stats_;
 };
 

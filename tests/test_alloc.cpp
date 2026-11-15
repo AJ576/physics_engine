@@ -29,7 +29,7 @@ long allocationsDuring(phys::World& w, int warmup, int steps) {
 }
 }  // namespace
 
-TEST_CASE("allocation: step() makes no heap allocations after warm-up (pile and gas)" * doctest::should_fail()) {
+TEST_CASE("allocation: step() makes no heap allocations after warm-up (pile and gas)") {
     phys::World pile = phys::scenes::pile(2000, 1);
     const long a = allocationsDuring(pile, 300, 120);
     phys::World gas = phys::scenes::stress(5000, 42);

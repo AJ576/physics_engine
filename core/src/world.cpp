@@ -71,7 +71,8 @@ void World::clear() {
     joints_.clear();
     jointState_.clear();
     contacts_.clear();
-    impulseCache_.clear();
+    impulseCache_ = {};
+    impulseNext_ = {};
     items_.clear();
 }
 
@@ -465,10 +466,10 @@ void World::prepareContacts() {
 
 void World::warmStart() {
     for (Contact& c : contacts_) {
-        auto it = impulseCache_.find(contactKey(c.a, c.b));
-        if (it == impulseCache_.end()) continue;
-        c.normalImpulse = it->second.x;
-        c.tangentImpulse = it->second.y;
+        const CacheSlot* it = impulseCache_.find(contactKey(c.a, c.b));
+        if (!it) continue;
+        c.normalImpulse = it->normal;
+        c.tangentImpulse = it->tangent;
         const Vec2 P = c.normal * c.normalImpulse + perp(c.normal) * c.tangentImpulse;
         Body& A = bodies_[static_cast<std::size_t>(c.a)];
         A.vel -= P * A.invMass;
@@ -581,12 +582,56 @@ void World::applyRestitution() {
     }
 }
 
+namespace {
+inline std::size_t slotFor(std::uint64_t key, std::size_t mask) {
+    key ^= key >> 33;  // mix (splitmix64 finalizer constants)
+    key *= 0xff51afd7ed558ccdull;
+    key ^= key >> 33;
+    return static_cast<std::size_t>(key) & mask;
+}
+}  // namespace
+
+void World::ImpulseTable::reset(std::size_t entries) {
+    std::size_t cap = 64;
+    while (cap < 2 * entries) cap <<= 1;  // load factor <= 0.5
+    if (slots.size() < cap) {
+        slots.assign(cap, CacheSlot{});
+        gen = 0;
+    }
+    if (++gen == 0) {  // generation counter wrapped
+        for (CacheSlot& s : slots) s.gen = 0;
+        gen = 1;
+    }
+}
+
+void World::ImpulseTable::insert(std::uint64_t key, double normal, double tangent) {
+    const std::size_t mask = slots.size() - 1;
+    for (std::size_t i = slotFor(key, mask);; i = (i + 1) & mask) {
+        CacheSlot& s = slots[i];
+        if (s.gen != gen) {
+            s = {key, normal, tangent, gen};
+            return;
+        }
+    }
+}
+
+const World::CacheSlot* World::ImpulseTable::find(std::uint64_t key) const {
+    if (slots.empty()) return nullptr;
+    const std::size_t mask = slots.size() - 1;
+    for (std::size_t i = slotFor(key, mask);; i = (i + 1) & mask) {
+        const CacheSlot& s = slots[i];
+        if (s.gen != gen) return nullptr;
+        if (s.key == key) return &s;
+    }
+}
+
 void World::storeImpulses() {
     if (!cfg_.warmStarting) return;
-    impulseCache_.clear();
+    impulseNext_.reset(contacts_.size());
     for (const Contact& c : contacts_)
         if (c.normalImpulse != 0.0 || c.tangentImpulse != 0.0)
-            impulseCache_[contactKey(c.a, c.b)] = Vec2{c.normalImpulse, c.tangentImpulse};
+            impulseNext_.insert(contactKey(c.a, c.b), c.normalImpulse, c.tangentImpulse);
+    std::swap(impulseCache_, impulseNext_);
 }
 
 void World::solvePositions() {
