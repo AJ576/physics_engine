@@ -17,17 +17,50 @@ using phys::makeBody;
 using phys::World;
 using phys::WorldConfig;
 
-TEST_CASE("bug: fast circles tunnel through each other (discrete detection only)" * doctest::should_fail()) {
-    // Two r = 2 circles, 7 px apart, closing at 600 px/s (10 px per step,
-    // more than the 4 px sum of radii). They must bounce, not pass through.
+namespace {
+// Two r = 2 circles, 7 px apart, closing at 600 px/s (10 px per step, more
+// than the 4 px sum of radii). Returns true if they bounced.
+bool fastPairBounces(bool continuous) {
     WorldConfig c;
     c.gravity = {0, 0};
     c.restitution = 1.0;
+    c.continuous = continuous;
     World w(c);
     w.addBody(makeBody(2.0, 1.0, {396.5, 300.0}, {300.0, 0.0}));
     w.addBody(makeBody(2.0, 1.0, {403.5, 300.0}, {-300.0, 0.0}));
     for (int s = 0; s < 10; ++s) w.step();
-    CHECK(w.bodies()[0].pos.x < w.bodies()[1].pos.x);
+    return w.bodies()[0].pos.x < w.bodies()[1].pos.x;
+}
+}  // namespace
+
+TEST_CASE("fixed: fast circles no longer tunnel (swept-circle speculative contacts)") {
+    CHECK(fastPairBounces(true));
+    CHECK_FALSE(fastPairBounces(false));  // discrete detection alone still tunnels
+}
+
+TEST_CASE("CCD: a bullet fired into a row hands its velocity on one body at a time, nobody passes anybody") {
+    // 1 px circles 10 px apart; the bullet moves 30 px per step (1800 px/s),
+    // 15 diameters per step. With e = 1, equal masses and no friction the
+    // exact answer is an elastic chain: the bullet stops and the last body
+    // leaves with 1800 px/s. Requires the earliest-time-of-impact filter (no
+    // pushing bodies hidden behind the first) and the post-solve motion clamp
+    // (a body made fast by the solver cannot pass its neighbour).
+    WorldConfig c;
+    c.gravity = {0, 0};
+    c.restitution = 1.0;
+    c.friction = 0.0;
+    c.width = 4000.0;
+    World w(c);
+    w.addBody(makeBody(1.0, 1.0, {100.0, 300.0}, {1800.0, 0.0}));
+    for (int k = 0; k < 5; ++k) w.addBody(makeBody(1.0, 1.0, {200.0 + 10.0 * k, 300.0}));
+    for (int s = 0; s < 12; ++s) {
+        w.step();
+        for (std::size_t i = 1; i < w.bodies().size(); ++i)
+            REQUIRE(w.bodies()[i - 1].pos.x < w.bodies()[i].pos.x);  // order kept: nobody tunnels
+    }
+    CHECK(w.linearMomentum().x == doctest::Approx(1800.0));
+    for (int i = 0; i < 5; ++i) CHECK(std::abs(w.bodies()[static_cast<std::size_t>(i)].vel.x) < 1e-9);
+    CHECK(w.bodies()[5].vel.x == doctest::Approx(1800.0));
 }
 
 TEST_CASE("fixed: an inelastic pile comes to rest (position correction no longer injects energy)") {

@@ -13,7 +13,9 @@
 //   3. warm start, then sequential impulses: friction clamped to the cone
 //      $|j_t| \le \mu j_n$, normal impulse clamped to $j_n \ge 0$ (accumulated);
 //      then a restitution pass
-//   4. positions: $x \mathrel{+}= v\,\Delta t$, plus split-impulse position correction
+//   4. positions: $x \mathrel{+}= \alpha\,v\,\Delta t$ plus split-impulse position correction,
+//      where $\alpha < 1$ only for a fast body whose final path hits something
+//      (conservative advancement, so nothing passes through anything)
 #include "physics/vec2.hpp"
 
 #include <cstddef>
@@ -67,7 +69,7 @@ struct WorldConfig {
     double baumgarte = 0.2;   // fraction of penetration removed per step
     double slop = 0.01;       // px of penetration allowed before correcting
     bool warmStarting = true;
-    bool continuous = false;  // body-body swept-circle test: speculative contacts for fast pairs (CCD)
+    bool continuous = true;   // body-body swept-circle test: speculative contacts for fast pairs (CCD)
     // Pairs closer than this get a speculative contact even if they are not
     // approaching yet: the solver changes velocities (e.g. the floor stops the
     // lower of two bodies falling together), so a pair with zero relative
@@ -91,6 +93,7 @@ struct Contact {
     double maxNormalImpulse = 0.0;
     double relativeVelocity = 0.0;  // normal relative velocity at the start of the step (before forces)
     double pseudoImpulse = 0.0;     // split impulse (position correction)
+    double toi = 0.0;               // swept contacts: time of impact (s); 0 for touching / margin
 };
 
 // Narrowphase for two circles. Returns true and fills normal (a -> b) and
@@ -99,14 +102,17 @@ struct Contact {
 // swept-circle test $|d + v_r t| = r_a + r_b$ has a root $t \in [0, \Delta t]$
 // (a speculative contact with separation >= 0 and the normal at impact).
 // `margin` is the speculative distance (contacts are also made for gaps below it).
+// `toi` (optional) receives the time of impact for swept contacts, 0 otherwise.
 bool collideCircles(const Body& a, const Body& b, double dt, bool continuous, Vec2& normal, double& separation,
-                    double margin = 0.0);
+                    double margin = 0.0, double* toi = nullptr);
 
 struct StepStats {
     std::size_t candidatePairs = 0;  // body pairs that reached the narrowphase
     std::size_t contacts = 0;        // body-body contacts (touching + speculative)
     std::size_t speculative = 0;     // of which speculative (not yet touching)
     std::size_t wallContacts = 0;
+    std::size_t fastBodies = 0;      // bodies checked by the post-solve motion clamp
+    std::size_t clampedBodies = 0;   // of which advanced less than a full step
 };
 
 class World {
@@ -137,6 +143,7 @@ private:
     void integrateVelocities();
     void collide();
     void narrowphase(int i, int j);
+    void filterSweptContacts();
     void wallContacts(int i);
     void prepareContacts();
     void warmStart();
@@ -144,7 +151,9 @@ private:
     void applyRestitution();
     void storeImpulses();
     void solvePositions();
+    void clampFastMotion();
     void integratePositions();
+    double sweptFraction(int f, int j) const;
 
     double restitutionThreshold() const;
 
@@ -157,6 +166,12 @@ private:
     std::vector<Vec2> velCorrection_; // integrator-specific position term
     std::unordered_map<std::uint64_t, std::vector<int>> grid_;
     std::vector<int> oversized_;
+    double cellSizeUsed_ = 10.0;
+    double maxRadius_ = 0.0;
+    std::vector<double> alpha_;     // fraction of this step's motion each body may advance
+    std::vector<double> minToi_;
+    std::vector<int> fast_;
+    std::vector<char> isFast_;
     std::unordered_map<std::uint64_t, Vec2> impulseCache_;  // (normal, tangent) by contact key
     StepStats stats_;
 };

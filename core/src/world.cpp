@@ -86,6 +86,7 @@ void World::step() {
     applyRestitution();
     storeImpulses();
     solvePositions();
+    clampFastMotion();
     integratePositions();
 }
 
@@ -113,6 +114,8 @@ void World::integrateVelocities() {
 void World::collide() {
     contacts_.clear();
     const int n = static_cast<int>(bodies_.size());
+    maxRadius_ = 0.0;
+    for (const Body& b : bodies_) maxRadius_ = std::max(maxRadius_, b.radius);
 
     if (cfg_.walls)
         for (int i = 0; i < n; ++i) wallContacts(i);
@@ -123,6 +126,7 @@ void World::collide() {
                 ++stats_.candidatePairs;
                 narrowphase(i, j);
             }
+        filterSweptContacts();
         return;
     }
 
@@ -133,6 +137,7 @@ void World::collide() {
     // bodies cover, so each pair is tested exactly once.
     const double cell = cfg_.cellSize > 0.0 ? cfg_.cellSize : 10.0;
     const double inv = 1.0 / cell;
+    cellSizeUsed_ = cell;
     const double dt = cfg_.continuous ? cfg_.dt : 0.0;
     const double pad = 0.5 * cfg_.speculativeDistance;  // two pads = one margin
     std::vector<Aabb> boxes(static_cast<std::size_t>(n));
@@ -190,10 +195,50 @@ void World::collide() {
             narrowphase(std::min(i, j), std::max(i, j));
         }
     }
+
+    filterSweptContacts();
+}
+
+// A swept contact (two bodies that would meet within the step) is kept only
+// if it is the earliest time of impact for both bodies. Otherwise a fast
+// body would push every body along its path in the same step, including
+// bodies hidden behind the first one it hits.
+void World::filterSweptContacts() {
+    bool any = false;
+    for (const Contact& c : contacts_) any |= c.toi > 0.0;
+    if (!any) return;
+    // Touching or margin contacts that are approaching count as impact at t = 0.
+    minToi_.assign(bodies_.size(), 1e300);
+    for (const Contact& c : contacts_) {
+        if (c.toi <= 0.0) {
+            if (c.b < 0) continue;
+            const Body& A = bodies_[static_cast<std::size_t>(c.a)];
+            const Body& B = bodies_[static_cast<std::size_t>(c.b)];
+            if (dot(B.vel - A.vel, c.normal) >= 0.0) continue;
+            minToi_[static_cast<std::size_t>(c.a)] = 0.0;
+            minToi_[static_cast<std::size_t>(c.b)] = 0.0;
+            continue;
+        }
+        minToi_[static_cast<std::size_t>(c.a)] = std::min(minToi_[static_cast<std::size_t>(c.a)], c.toi);
+        minToi_[static_cast<std::size_t>(c.b)] = std::min(minToi_[static_cast<std::size_t>(c.b)], c.toi);
+    }
+    std::size_t removed = 0;
+    contacts_.erase(std::remove_if(contacts_.begin(), contacts_.end(),
+                                   [&](const Contact& c) {
+                                       const bool drop = c.toi > 0.0 &&
+                                                         (c.toi > minToi_[static_cast<std::size_t>(c.a)] ||
+                                                          c.toi > minToi_[static_cast<std::size_t>(c.b)]);
+                                       removed += drop && c.b >= 0;
+                                       return drop;
+                                   }),
+                    contacts_.end());
+    stats_.contacts -= removed;
+    stats_.speculative -= removed;
 }
 
 bool collideCircles(const Body& A, const Body& B, double dt, bool continuous, Vec2& normal, double& separation,
-                    double margin) {
+                    double margin, double* toi) {
+    if (toi) *toi = 0.0;
     const Vec2 d = B.pos - A.pos;
     const double R = A.radius + B.radius;
     const double distSq = d.lengthSq();
@@ -223,6 +268,7 @@ bool collideCircles(const Body& A, const Body& B, double dt, bool continuous, Ve
     if (t > dt) return false;  // not reached this step
     normal = (d + vr * t) / R;
     separation = std::max(0.0, dot(d, normal) - R);
+    if (toi) *toi = t;
     return true;
 }
 
@@ -233,7 +279,8 @@ void World::narrowphase(int i, int j) {
     Contact c;
     c.a = i;
     c.b = j;
-    if (!collideCircles(A, B, cfg_.dt, cfg_.continuous, c.normal, c.separation, cfg_.speculativeDistance)) return;
+    if (!collideCircles(A, B, cfg_.dt, cfg_.continuous, c.normal, c.separation, cfg_.speculativeDistance, &c.toi))
+        return;
     if (c.separation > 0.0 || (B.pos - A.pos).lengthSq() >= (A.radius + B.radius) * (A.radius + B.radius))
         ++stats_.speculative;
     c.ra = c.normal * A.radius;
@@ -430,6 +477,125 @@ void World::solvePositions() {
     }
 }
 
+// First fraction $s \in [0, 1]$ of this step's motion at which bodies f and j
+// (moving by their final displacements) touch, or 1 if they do not. Pairs
+// already overlapping are left to the contact solver.
+double World::sweptFraction(int f, int j) const {
+    const auto fi = static_cast<std::size_t>(f), ji = static_cast<std::size_t>(j);
+    const Body& F = bodies_[fi];
+    const Body& J = bodies_[ji];
+    const double dt = cfg_.dt;
+    const bool split = cfg_.positionCorrection == PositionCorrection::SplitImpulse;
+    const Vec2 df = (F.vel + (split ? pseudoVel_[fi] : Vec2{})) * dt;
+    const Vec2 dj = (J.vel + (split ? pseudoVel_[ji] : Vec2{})) * dt;
+    const Vec2 d = J.pos - F.pos, m = dj - df;
+    const double R = F.radius + J.radius;
+    const double c = d.lengthSq() - R * R;
+    if (c <= 0.0) return 1.0;  // overlapping now
+    const double b = dot(d, m);
+    if (b >= 0.0) return 1.0;  // separating
+    const double a = m.lengthSq();
+    const double disc = b * b - a * c;
+    if (disc < 0.0) return 1.0;
+    const double t = (-b - std::sqrt(disc)) / a;
+    return t < 1.0 ? std::max(t, 0.0) : 1.0;
+}
+
+void World::clampFastMotion() {
+    // Conservative advancement for bodies whose final (post-solve)
+    // displacement exceeds half their radius: the solver can make a body fast
+    // after contacts were detected (e.g. a hit hands its speed on), and that
+    // body's new path was never tested. Each fast body's path is tested
+    // against nearby bodies (grid), other fast bodies (sort and sweep on x)
+    // and the walls, and every body involved advances only to the first touch.
+    const std::size_t n = bodies_.size();
+    alpha_.assign(n, 1.0);
+    if (!cfg_.continuous) return;
+    const double dt = cfg_.dt;
+    const bool split = cfg_.positionCorrection == PositionCorrection::SplitImpulse;
+    auto disp = [&](std::size_t i) { return (bodies_[i].vel + (split ? pseudoVel_[i] : Vec2{})) * dt; };
+
+    fast_.clear();
+    isFast_.assign(n, 0);
+    for (std::size_t i = 0; i < n; ++i) {
+        const Body& b = bodies_[i];
+        if (b.isStatic()) continue;
+        const double half = 0.5 * b.radius;
+        if (disp(i).lengthSq() > half * half) {
+            fast_.push_back(static_cast<int>(i));
+            isFast_[i] = 1;
+        }
+    }
+    stats_.fastBodies = fast_.size();
+    if (fast_.empty()) return;
+
+    auto hit = [&](int f, int j) {
+        const double s = sweptFraction(f, j);
+        if (s < 1.0) {
+            alpha_[static_cast<std::size_t>(f)] = std::min(alpha_[static_cast<std::size_t>(f)], s);
+            alpha_[static_cast<std::size_t>(j)] = std::min(alpha_[static_cast<std::size_t>(j)], s);
+        }
+    };
+
+    // Fast vs slow. A slow body moves at most half its radius, so it is found
+    // in the cells (built in collide()) around the fast body's path padded by
+    // its radius, the largest radius and half the largest radius.
+    const double inv = 1.0 / cellSizeUsed_;
+    for (int f : fast_) {
+        const Body& F = bodies_[static_cast<std::size_t>(f)];
+        const Vec2 p1 = F.pos + disp(static_cast<std::size_t>(f));
+        const double pad = F.radius + 1.5 * maxRadius_ + cfg_.speculativeDistance;
+        const std::int32_t x0 = cellCoord(std::min(F.pos.x, p1.x) - pad, inv), x1 = cellCoord(std::max(F.pos.x, p1.x) + pad, inv);
+        const std::int32_t y0 = cellCoord(std::min(F.pos.y, p1.y) - pad, inv), y1 = cellCoord(std::max(F.pos.y, p1.y) + pad, inv);
+        if (cfg_.broadphase == Broadphase::BruteForce ||
+            static_cast<std::int64_t>(x1 - x0 + 1) * (y1 - y0 + 1) > 4096) {
+            for (std::size_t j = 0; j < n; ++j)
+                if (!isFast_[j]) hit(f, static_cast<int>(j));
+        } else {
+            for (std::int32_t y = y0; y <= y1; ++y)
+                for (std::int32_t x = x0; x <= x1; ++x) {
+                    auto it = grid_.find(cellKey(x, y));
+                    if (it == grid_.end()) continue;
+                    for (int j : it->second)
+                        if (!isFast_[static_cast<std::size_t>(j)]) hit(f, j);
+                }
+            for (int j : oversized_)
+                if (!isFast_[static_cast<std::size_t>(j)]) hit(f, j);
+        }
+        // Walls: the disc may not cross a wall plane.
+        if (cfg_.walls) {
+            const Vec2 d = disp(static_cast<std::size_t>(f));
+            const double gaps[4] = {F.pos.x - F.radius, cfg_.width - F.pos.x - F.radius, F.pos.y - F.radius,
+                                    cfg_.height - F.pos.y - F.radius};
+            const double towards[4] = {-d.x, d.x, -d.y, d.y};
+            for (int w = 0; w < 4; ++w)
+                if (gaps[w] >= 0.0 && towards[w] > gaps[w])
+                    alpha_[static_cast<std::size_t>(f)] = std::min(alpha_[static_cast<std::size_t>(f)], gaps[w] / towards[w]);
+        }
+    }
+
+    // Fast vs fast: sort by the min x of each path's AABB and sweep.
+    std::sort(fast_.begin(), fast_.end(), [&](int a, int b) {
+        const Body& A = bodies_[static_cast<std::size_t>(a)];
+        const Body& B = bodies_[static_cast<std::size_t>(b)];
+        const double ax = std::min(A.pos.x, A.pos.x + disp(static_cast<std::size_t>(a)).x) - A.radius;
+        const double bx = std::min(B.pos.x, B.pos.x + disp(static_cast<std::size_t>(b)).x) - B.radius;
+        return ax < bx || (ax == bx && a < b);
+    });
+    for (std::size_t p = 0; p < fast_.size(); ++p) {
+        const auto ip = static_cast<std::size_t>(fast_[p]);
+        const Body& A = bodies_[ip];
+        const double maxX = std::max(A.pos.x, A.pos.x + disp(ip).x) + A.radius;
+        for (std::size_t q = p + 1; q < fast_.size(); ++q) {
+            const auto iq = static_cast<std::size_t>(fast_[q]);
+            const Body& B = bodies_[iq];
+            if (std::min(B.pos.x, B.pos.x + disp(iq).x) - B.radius > maxX) break;
+            hit(fast_[p], fast_[q]);
+        }
+    }
+    for (std::size_t i = 0; i < n; ++i) stats_.clampedBodies += alpha_[i] < 1.0;
+}
+
 void World::integratePositions() {
     const double dt = cfg_.dt;
     const bool split = cfg_.positionCorrection == PositionCorrection::SplitImpulse;
@@ -442,7 +608,7 @@ void World::integratePositions() {
         Vec2 v = b.vel;
         if (corr) v -= velCorrection_[i];
         if (split) v += pseudoVel_[i];
-        b.pos += v * dt;
+        b.pos += v * (alpha_[i] * dt);
         b.angle += b.angVel * dt;
         if (cfg_.walls) {  // safety net: a centre outside the arena is put back on the boundary
             b.pos.x = std::clamp(b.pos.x, 0.0, cfg_.width);
