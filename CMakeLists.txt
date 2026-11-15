@@ -40,6 +40,7 @@ add_library(physics_core STATIC
     core/src/physics.cpp
     core/src/rigidBody.cpp
     core/src/spring.cpp
+    core/src/scene.cpp
 )
 target_include_directories(physics_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core/include)
 target_link_libraries(physics_core PRIVATE phys_warnings)
