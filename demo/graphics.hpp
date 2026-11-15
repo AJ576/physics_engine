@@ -8,8 +8,8 @@
 #include <vector>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
-#include "rigidBody.hpp"
-#include "spring.hpp"
+#include "physics/rigidBody.hpp"
+#include "physics/spring.hpp"
 
 class Graphics {
 private:

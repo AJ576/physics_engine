@@ -1,4 +1,4 @@
-#include "rigidBody.hpp"
+#include "physics/rigidBody.hpp"
 #include <cmath>
 
 double springConstant = 100.0; // N/m - initialized with default value

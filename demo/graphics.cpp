@@ -6,7 +6,7 @@
 #include <iomanip>
 
 Graphics::Graphics(int width, int height): 
-    windowHeight(height), windowWidth(width),fps_(0.0), fpsAccumTime_(0.0), fpsFrameCount_(0), lastCounter_(0)
+    windowWidth(width), windowHeight(height), fps_(0.0), fpsAccumTime_(0.0), fpsFrameCount_(0), lastCounter_(0)
 {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cout << "SDL Error: " << SDL_GetError() << std::endl;

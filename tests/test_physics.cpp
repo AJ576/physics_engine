@@ -1,6 +1,6 @@
-#include "physics.hpp"
-#include "rigidBody.hpp"
-#include "spring.hpp"
+#include "physics/physics.hpp"
+#include "physics/rigidBody.hpp"
+#include "physics/spring.hpp"
 #include <iostream>
 #include <iomanip>
 #include <cmath>

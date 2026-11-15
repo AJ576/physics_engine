@@ -1,4 +1,4 @@
-#include "spring.hpp"
+#include "physics/spring.hpp"
 #include <cmath>
 
 // Spring constructor
@@ -98,7 +98,7 @@ bool detectSpringHit(const RigidBody& ball, const Spring& spring, bool& hitFromA
     return false;
 }
 
-void applySpringImpulse(RigidBody& ball, Spring& spring, bool hitFromAbove) {
+void applySpringImpulse(RigidBody& ball, Spring& spring, [[maybe_unused]] bool hitFromAbove) {
     auto vel = ball.getVelocity();
     auto pos = ball.getPosition();
     double r = ball.getRadius();

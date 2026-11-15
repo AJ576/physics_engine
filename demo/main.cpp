@@ -1,6 +1,6 @@
-#include "physics.hpp"
+#include "physics/physics.hpp"
 #include "graphics.hpp"
-#include "spring.hpp"
+#include "physics/spring.hpp"
 #include <cmath>
 #include <cstdio>
 #include <iostream>
