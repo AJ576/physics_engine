@@ -53,3 +53,31 @@ results) independent of the standard library's hash table.
 Raw: [gas](bench/opt/01_flat_grid_gas.md), [pile](bench/opt/01_flat_grid_pile.md).
 The pile scene is solver-bound (see the next profile), so the grid barely
 shows there.
+
+## 2. Grid cell size sweep (no change; default stays 10 px)
+
+Bodies have radius 0.89-2.82 px (max diameter 5.64 px). Because bodies are
+inserted into every cell their swept AABB touches and pairs are AABB-tested
+before the narrowphase, the candidate-pair count does not depend on the cell
+size (3,069-3,103 per step at gas N = 20,000). Only the bookkeeping cost does.
+`physics_bench --cell C --runs 5 --steps 300`, median p50 ([raw](bench/opt/02_cell_size_sweep.txt)):
+
+| cell (px) | cell / max radius | gas N = 20,000 p50 | pile N = 5,000 p50 |
+|---:|---:|---:|---:|
+| 3 | 1.1 | 5.324 ms | 8.447 ms |
+| 4 | 1.4 | 5.539 ms | 8.116 ms |
+| 5 | 1.8 | 5.340 ms | 7.992 ms |
+| 6 | 2.1 | 5.142 ms | 7.661 ms |
+| 8 | 2.8 | 5.604 ms | 7.589 ms |
+| 10 (default) | 3.5 | 5.229 ms | 7.727 ms |
+| 12 | 4.3 | 5.301 ms | 8.105 ms |
+| 15 | 5.3 | 5.292 ms | 7.795 ms |
+| 20 | 7.1 | 5.476 ms | 8.200 ms |
+| 30 | 10.6 | 5.969 ms | 8.822 ms |
+
+From 3 to 20 px the spread (5.14-5.60 ms gas, 7.59-8.45 ms pile) is inside
+this machine's run-to-run noise, so no cell size in that range is measurably
+better than 10 px. At 30 px the cost rises (+14% gas, +14% pile vs 10 px)
+because more AABB tests happen per cell. Unlike the old engine, a cell smaller
+than a body is still exact (test "grid contact set equals brute force for any
+cell size").

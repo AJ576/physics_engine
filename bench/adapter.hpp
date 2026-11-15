@@ -13,6 +13,7 @@ namespace bench {
 struct SimConfig {
     double gravityY = 0.0;  // px/s^2 (negative = down)
     double restitution = 1.0;
+    double cellSize = 0.0;  // 0 = engine default
 };
 
 struct StepCounts {
@@ -28,6 +29,7 @@ public:
         c.height = scene.height;
         c.gravity = {0.0, cfg.gravityY};
         c.restitution = cfg.restitution;
+        if (cfg.cellSize > 0.0) c.cellSize = cfg.cellSize;
         world_ = phys::World(c);
         for (const auto& b : scene.bodies) world_.addBody(phys::makeBody(b.radius, b.mass, {b.x, b.y}, {b.vx, b.vy}));
     }

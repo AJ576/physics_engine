@@ -11,7 +11,7 @@
 //
 // Usage: physics_bench [--scene gas|pile] [--n 500,1000,...] [--runs R]
 //                      [--warmup W] [--steps S] [--brute] [--brute-steps S]
-//                      [--search] [--csv FILE] [--seed X]
+//                      [--search] [--csv FILE] [--seed X] [--cell PX]
 #include "adapter.hpp"
 
 #include <algorithm>
@@ -44,6 +44,7 @@ struct Options {
     bool search = false;
     std::string csv;
     std::uint64_t seed = 42;
+    double cell = 0.0;
 };
 
 struct RunStats {
@@ -98,6 +99,7 @@ bench::SimConfig configFor(const Options& o) {
     bench::SimConfig c;
     if (o.scene == "pile") { c.gravityY = -980.0; c.restitution = 0.7; }
     else { c.gravityY = 0.0; c.restitution = 1.0; }  // "gas": steady workload
+    c.cellSize = o.cell;
     return c;
 }
 
@@ -168,6 +170,7 @@ int main(int argc, char** argv) {
         else if (a == "--search") o.search = true;
         else if (a == "--csv") o.csv = next();
         else if (a == "--seed") o.seed = std::strtoull(next(), nullptr, 10);
+        else if (a == "--cell") o.cell = std::atof(next());
         else { std::fprintf(stderr, "unknown option %s\n", a.c_str()); return 2; }
     }
     if (o.scene != "gas" && o.scene != "pile") { std::fprintf(stderr, "scene must be gas or pile\n"); return 2; }
