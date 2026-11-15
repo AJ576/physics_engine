@@ -94,11 +94,27 @@ void World::clear() {
 
 double World::restitutionThreshold() const {
     if (cfg_.restitutionThreshold >= 0.0) return cfg_.restitutionThreshold;
-    return 2.0 * cfg_.gravity.length() * cfg_.dt;
+    return 2.0 * cfg_.gravity.length() * h_;
 }
 
 // --------------------------------------------------------------------- step
 void World::step() {
+    const int n = std::max(1, cfg_.substeps);
+    h_ = cfg_.dt / n;
+    StepStats total;
+    for (int i = 0; i < n; ++i) {
+        substep();
+        total.candidatePairs += stats_.candidatePairs;
+        total.contacts += stats_.contacts;
+        total.speculative += stats_.speculative;
+        total.wallContacts += stats_.wallContacts;
+        total.fastBodies += stats_.fastBodies;
+        total.clampedBodies += stats_.clampedBodies;
+    }
+    stats_ = total;
+}
+
+void World::substep() {
     stats_ = {};
     applyForces();
     integrateVelocities();
@@ -131,7 +147,7 @@ void World::applyForces() {
 }
 
 void World::integrateVelocities() {
-    const double dt = cfg_.dt;
+    const double dt = h_;
     double k = 0.0;  // position update uses $v_{final} - k\,a\,\Delta t$
     if (cfg_.integrator == Integrator::ExplicitEuler) k = 1.0;
     if (cfg_.integrator == Integrator::ConstantAccel) k = 0.5;
@@ -178,7 +194,7 @@ void World::collide() {
     const double cell = cfg_.cellSize > 0.0 ? cfg_.cellSize : 10.0;
     const double inv = 1.0 / cell;
     cellSizeUsed_ = cell;
-    const double dt = cfg_.continuous ? cfg_.dt : 0.0;
+    const double dt = cfg_.continuous ? h_ : 0.0;
     const double pad = 0.5 * cfg_.speculativeDistance;  // two pads = one margin
     std::vector<Aabb> boxes(static_cast<std::size_t>(n));
     grid_.clear();
@@ -319,7 +335,7 @@ void World::narrowphase(int i, int j) {
     Contact c;
     c.a = i;
     c.b = j;
-    if (!collideCircles(A, B, cfg_.dt, cfg_.continuous, c.normal, c.separation, cfg_.speculativeDistance, &c.toi))
+    if (!collideCircles(A, B, h_, cfg_.continuous, c.normal, c.separation, cfg_.speculativeDistance, &c.toi))
         return;
     if (c.separation > 0.0 || (B.pos - A.pos).lengthSq() >= (A.radius + B.radius) * (A.radius + B.radius))
         ++stats_.speculative;
@@ -341,7 +357,7 @@ void World::wallContacts(int i) {
         const bool touching = s < 0.0;
         // Walls are always speculative by velocity (cheap: one plane test), so a
         // body can never pass through a wall, as with the old engine's snapping.
-        const bool speculative = s < cfg_.speculativeDistance || (approach > 0.0 && s < approach * cfg_.dt);
+        const bool speculative = s < cfg_.speculativeDistance || (approach > 0.0 && s < approach * h_);
         if (!touching && !speculative) continue;
         Contact c;
         c.a = i;
@@ -426,7 +442,7 @@ void World::warmStart() {
 }
 
 void World::solveVelocities() {
-    const double invDt = 1.0 / cfg_.dt;
+    const double invDt = 1.0 / h_;
     const bool baumgarte = cfg_.positionCorrection == PositionCorrection::Baumgarte;
     const double mu = cfg_.friction;
     Vec2 zeroV;
@@ -532,7 +548,7 @@ void World::solvePositions() {
     // real velocities, so position correction does not add kinetic energy.
     if (cfg_.positionCorrection != PositionCorrection::SplitImpulse) return;
     pseudoVel_.assign(bodies_.size(), Vec2{});
-    const double invDt = 1.0 / cfg_.dt;
+    const double invDt = 1.0 / h_;
     const double beta = cfg_.baumgarte;
     for (int it = 0; it < cfg_.positionIterations; ++it) {
         for (std::size_t k = 0; k < joints_.size(); ++k) {
@@ -567,7 +583,7 @@ double World::sweptFraction(int f, int j) const {
     const auto fi = static_cast<std::size_t>(f), ji = static_cast<std::size_t>(j);
     const Body& F = bodies_[fi];
     const Body& J = bodies_[ji];
-    const double dt = cfg_.dt;
+    const double dt = h_;
     const bool split = cfg_.positionCorrection == PositionCorrection::SplitImpulse;
     const Vec2 df = (F.vel + (split ? pseudoVel_[fi] : Vec2{})) * dt;
     const Vec2 dj = (J.vel + (split ? pseudoVel_[ji] : Vec2{})) * dt;
@@ -594,7 +610,7 @@ void World::clampFastMotion() {
     const std::size_t n = bodies_.size();
     alpha_.assign(n, 1.0);
     if (!cfg_.continuous) return;
-    const double dt = cfg_.dt;
+    const double dt = h_;
     const bool split = cfg_.positionCorrection == PositionCorrection::SplitImpulse;
     auto disp = [&](std::size_t i) { return (bodies_[i].vel + (split ? pseudoVel_[i] : Vec2{})) * dt; };
 
@@ -680,7 +696,7 @@ void World::clampFastMotion() {
 }
 
 void World::integratePositions() {
-    const double dt = cfg_.dt;
+    const double dt = h_;
     const bool split = cfg_.positionCorrection == PositionCorrection::SplitImpulse;
     const bool corr = cfg_.integrator != Integrator::SemiImplicitEuler;
     for (std::size_t i = 0; i < bodies_.size(); ++i) {

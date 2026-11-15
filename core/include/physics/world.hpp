@@ -65,6 +65,10 @@ enum class PositionCorrection { None, Baumgarte, SplitImpulse };
 
 struct WorldConfig {
     double dt = 1.0 / 60.0;
+    // Each step() runs this many substeps of dt / substeps. Explicit springs
+    // are stable for $(\omega\,\Delta t)^2 < 4$ (undamped), so n substeps allow
+    // $n^2$ times stiffer springs at n times the cost.
+    int substeps = 1;
     Vec2 gravity{0.0, -980.0};
     double width = 800.0, height = 600.0;  // walls at x = 0, x = width, y = 0, y = height
     bool walls = true;
@@ -166,6 +170,7 @@ private:
         double pseudoImpulse = 0.0;
     };
 
+    void substep();
     void applyForces();
     void integrateVelocities();
     void collide();
@@ -196,6 +201,7 @@ private:
     std::vector<Vec2> velCorrection_; // integrator-specific position term
     std::unordered_map<std::uint64_t, std::vector<int>> grid_;
     std::vector<int> oversized_;
+    double h_ = 1.0 / 60.0;  // current substep length
     double cellSizeUsed_ = 10.0;
     double maxRadius_ = 0.0;
     std::vector<double> alpha_;     // fraction of this step's motion each body may advance

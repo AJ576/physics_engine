@@ -155,3 +155,23 @@ TEST_CASE("distance constraint: pendulum length stays within 0.5% and energy wit
     CHECK(maxErr < 0.005 * 200.0);  // within 0.5% of the length (velocity-level rod + split-impulse drift fix)
     CHECK(std::abs(drift) < 0.05);
 }
+
+TEST_CASE("substeps: a spring unstable at one step per frame is stable with 4 substeps") {
+    // $\omega = 180$ rad/s: $\omega\Delta t = 3 > 2$ diverges; with 4 substeps
+    // $\omega\,\Delta t/4 = 0.75$.
+    auto run = [](int substeps) {
+        WorldConfig c = noGravity();
+        c.substeps = substeps;
+        World w(c);
+        w.addBody(makeBody(1.0, 0.0, {0, 0}));
+        w.addBody(makeBody(1.0, 1.0, {110.0, 0}));
+        w.addSpring({0, 1, 100.0, 180.0 * 180.0, 0.0});
+        const double e0 = w.totalEnergy();
+        for (int s = 0; s < 600; ++s) w.step();
+        return w.totalEnergy() / e0;
+    };
+    const double one = run(1), four = run(4);
+    MESSAGE("E/E0 after 10 s: 1 substep " << one << ", 4 substeps " << four);
+    CHECK((!std::isfinite(one) || one > 10.0));  // bounded only because the bodies collide
+    CHECK(std::abs(four - 1.0) < 0.2);
+}
