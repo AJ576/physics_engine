@@ -108,3 +108,25 @@ both profiles, and the contact solver reads bodies in contact order (random
 access), where one record per body touches one cache line and separate arrays
 would touch five. Item 3 suggests even the cheaper version of the layout
 change does not pay on this working-set size.
+
+## 4. Cheaper CCD motion clamp (rejected, reverted)
+
+Target: `clampFastMotion()` + `sweptFraction()` + its `std::sort`, 24% of the
+gas profile. Changes: displacements computed once per body instead of inside
+every comparison, an exact path-AABB prefilter before the swept test, a visit
+stamp so a body in several cells is tested once, and precomputed sort keys.
+Results were bit-identical (`physics_bench --hash`: same state hash for gas
+and pile at N = 5,000 and 20,000).
+
+| Scene | N | before p50 | after p50 | median ratio | ratio range | verdict |
+|---|---:|---:|---:|---:|---|---|
+| gas | 5,000 | 1.165 ms | 1.159 ms | 1.039 | 0.880-1.049 | within noise |
+| gas | 20,000 | 5.343 ms | 5.380 ms | 1.002 | 0.939-1.237 | within noise |
+| pile | 5,000 | 7.999 ms | 8.079 ms | 1.013 | 0.950-1.048 | within noise |
+
+Raw: [gas](bench/opt/04_ccd_gas.md), [pile](bench/opt/04_ccd_pile.md).
+Why it did not help: `sweptFraction()` already exits after a few flops for
+almost every candidate (overlapping or separating), so skipping those calls
+saves little, while building path boxes for every body adds an O(N) pass.
+The cost is in scanning the cells around each fast body (about 9% of bodies
+per step in the gas scene). Reverted.
