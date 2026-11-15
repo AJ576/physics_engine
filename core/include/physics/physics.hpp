@@ -8,7 +8,7 @@
 #include <chrono>
 #include <unordered_map>
 
-using Clock = std::chrono::high_resolution_clock;
+using Clock = std::chrono::steady_clock;  // monotonic; high_resolution_clock may not be
 using TimePoint = std::chrono::time_point<Clock>;
 using Duration = std::chrono::duration<double>;
 
@@ -19,6 +19,8 @@ class TimeManager {
 
     public:
         const double fixedDeltaTime = 1.0/60.0; //60HZ
+        static constexpr double kMaxFrameTime = 0.25;   // s; longer frames are clamped
+        static constexpr int kMaxStepsPerFrame = 8;     // spiral-of-death guard
 
         TimeManager();
         void tick();                 // measure wall-clock time since last tick, then advance()

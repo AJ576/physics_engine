@@ -70,11 +70,11 @@ int stepsFor(double frameSeconds) {
 }
 }  // namespace
 
-TEST_CASE("bug: no cap on steps per frame (spiral of death)" * doctest::should_fail()) {
+TEST_CASE("fixed: steps per frame are capped (spiral of death)") {
     CHECK(stepsFor(0.24) <= 8);
 }
 
-TEST_CASE("bug: a longer hitch runs fewer physics steps than a shorter one" * doctest::should_fail()) {
+TEST_CASE("fixed: a longer hitch never runs fewer physics steps than a shorter one") {
     CHECK(stepsFor(0.26) >= stepsFor(0.24));
 }
 

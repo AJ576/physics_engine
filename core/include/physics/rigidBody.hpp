@@ -2,11 +2,6 @@
 #define RIGIDBODY_HPP
 #pragma once // read once per programam.
 #include <array>
-#include <chrono>
-
-using Clock = std::chrono::high_resolution_clock;
-using TimePoint = std::chrono::time_point<Clock>;
-using Duration = std::chrono::duration<double>;
 
 extern double springConstant; // N/m
 extern double e; // coefficient of restitution

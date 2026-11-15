@@ -29,20 +29,22 @@ void TimeManager::tick()
 
 void TimeManager::advance(double dt)
 {
-    // CAP: If the frame took longer than 0.25 seconds (resize/lag), 
-    // just pretend it took 0.016 seconds (1 frame at 60fps).
-    if (dt > 0.25) {
-        dt = 0.016; 
-    }
-
+    // Clamp a single frame's elapsed time (window drag, debugger, hitch) and
+    // never queue more than kMaxStepsPerFrame steps. When the simulation
+    // cannot keep up, it slows down instead of spiralling: every frame would
+    // otherwise queue more steps than the last.
+    if (!(dt > 0.0)) dt = 0.0;  // also rejects NaN
+    if (dt > kMaxFrameTime) dt = kMaxFrameTime;
     accumulator += dt;
+    const double maxQueued = kMaxStepsPerFrame * fixedDeltaTime;
+    if (accumulator > maxQueued) accumulator = maxQueued;
 }
 
 bool TimeManager::physicsTime()
 {
-    if(accumulator > fixedDeltaTime)
+    if (accumulator >= fixedDeltaTime)
     {
-        accumulator-=fixedDeltaTime;
+        accumulator -= fixedDeltaTime;
         return true;
     }
     return false;
