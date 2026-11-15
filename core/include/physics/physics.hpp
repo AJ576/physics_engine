@@ -21,7 +21,8 @@ class TimeManager {
         const double fixedDeltaTime = 1.0/60.0; //60HZ
 
         TimeManager();
-        void tick();
+        void tick();                 // measure wall-clock time since last tick, then advance()
+        void advance(double dt);     // add one frame's elapsed time (s) to the accumulator
         bool physicsTime();
         void reset();
 };

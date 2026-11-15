@@ -24,8 +24,11 @@ void TimeManager::tick()
     Duration passed_time = current_time-last_time;
     last_time = current_time;
 
-    double dt = passed_time.count();
+    advance(passed_time.count());
+}
 
+void TimeManager::advance(double dt)
+{
     // CAP: If the frame took longer than 0.25 seconds (resize/lag), 
     // just pretend it took 0.016 seconds (1 frame at 60fps).
     if (dt > 0.25) {
