@@ -1,48 +1,48 @@
-#ifndef GRAPHICS_HPP
-#define GRAPHICS_HPP
-
 #pragma once
+// SDL2 rendering for the demo. Physics uses y up; the window uses y down.
+#include "physics/world.hpp"
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
+
 #include <array>
+#include <cmath>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
-#include "physics/world.hpp"
+
+using Color = std::array<int, 4>;
 
 class Graphics {
-private:
-    SDL_Window* window;
-    SDL_Renderer* renderer;
-    TTF_Font* font;
-    int windowWidth;
-    int windowHeight;
-
-    // FPS state lives in Graphics now
-    double fps_;
-    double fpsAccumTime_;
-    int fpsFrameCount_;
-    Uint64 lastCounter_;
-
-    std::unordered_map<int, SDL_Texture*> circleCache_;
-    SDL_Texture* getCircleTexture(int radius);
-    SDL_Texture* createCircleTexture(int radius); // <- fixed case
-
 public:
     Graphics(int width, int height);
     ~Graphics();
+    Graphics(const Graphics&) = delete;
+    Graphics& operator=(const Graphics&) = delete;
 
     void clear();
-    void drawCircle(const phys::Body& body, const std::array<int, 4>& color);
-    void drawText(const std::string& text, int x, int y, const std::array<int, 4>& color);
+    void drawCircle(const phys::Body& body, const Color& color);  // filled disc plus a spin marker
+    void drawLine(phys::Vec2 a, phys::Vec2 b, const Color& color);
+    void drawGrid(double cellSize, const Color& color);
+    void drawText(const std::string& text, int x, int y, const Color& color);
+    void drawHud(const std::vector<std::string>& lines);
     void present();
-    bool processEvents();
+    bool saveScreenshot(const std::string& bmpPath);
     void updateSize(int width, int height);
+    double fps() const { return fps_; }
+    bool hasFont() const { return font_ != nullptr; }
 
-    void printPhysicsInfo(double kinetic, double potential);
+private:
+    SDL_Texture* circleTexture(int radius);
+    int sx(double x) const { return static_cast<int>(std::lround(x)); }
+    int sy(double y) const { return height_ - static_cast<int>(std::lround(y)); }
 
-    // optional helper
-    double getFPS() const { return fps_; }
+    SDL_Window* window_ = nullptr;
+    SDL_Renderer* renderer_ = nullptr;
+    TTF_Font* font_ = nullptr;
+    int width_, height_;
+    double fps_ = 0.0, fpsTime_ = 0.0;
+    int fpsFrames_ = 0;
+    Uint64 lastCounter_ = 0;
+    std::unordered_map<int, SDL_Texture*> circleCache_;
 };
-
-#endif // GRAPHICS_HPP

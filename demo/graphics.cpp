@@ -1,200 +1,141 @@
 #include "graphics.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <iostream>
-#include <sstream>
-#include <iomanip>
 
-Graphics::Graphics(int width, int height): 
-    windowWidth(width), windowHeight(height), fps_(0.0), fpsAccumTime_(0.0), fpsFrameCount_(0), lastCounter_(0)
-{
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        std::cout << "SDL Error: " << SDL_GetError() << std::endl;
-    }
-    if (TTF_Init() < 0) {
-        std::cout << "TTF Error: " << TTF_GetError() << std::endl;
-    }
-
-    window = SDL_CreateWindow("Physics Engine", SDL_WINDOWPOS_CENTERED, 
-                          SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_RESIZABLE);
-    
-    // The "Accelerated" flag uses your GPU to draw
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-
-    font = TTF_OpenFont("/System/Library/Fonts/Supplemental/Arial.ttf", 24);
-    if (!font) {
-        font = TTF_OpenFont("/System/Library/Fonts/Helvetica.ttc", 24);
-    }
-    if (!font) {
-        font = TTF_OpenFont("/Library/Fonts/Arial.ttf", 24);
-    }
-    if (!font) {
-        std::cout << "TTF_OpenFont failed: " << TTF_GetError() << std::endl;
-    }
-
+Graphics::Graphics(int width, int height) : width_(width), height_(height) {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) std::cerr << "SDL error: " << SDL_GetError() << "\n";
+    if (TTF_Init() < 0) std::cerr << "TTF error: " << TTF_GetError() << "\n";
+    window_ = SDL_CreateWindow("Physics Engine", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
+                               SDL_WINDOW_RESIZABLE);
+    renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!renderer_) renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_SOFTWARE);  // headless / no GPU
+    if (!renderer_) std::cerr << "SDL_CreateRenderer failed: " << SDL_GetError() << "\n";
+    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+    const char* fonts[] = {"/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Helvetica.ttc",
+                           "/Library/Fonts/Arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                           "/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+                           "C:\\Windows\\Fonts\\arial.ttf"};
+    for (const char* f : fonts)
+        if ((font_ = TTF_OpenFont(f, 15))) break;
+    if (!font_) std::cerr << "No font found: the HUD is printed to the terminal once per second instead.\n";
     lastCounter_ = SDL_GetPerformanceCounter();
 }
 
 Graphics::~Graphics() {
-    for (auto& kv : circleCache_) {
-        SDL_DestroyTexture(kv.second);
-    }
-    circleCache_.clear();
-
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    if (font) TTF_CloseFont(font);
+    for (auto& kv : circleCache_) SDL_DestroyTexture(kv.second);
+    if (font_) TTF_CloseFont(font_);
+    SDL_DestroyRenderer(renderer_);
+    SDL_DestroyWindow(window_);
     TTF_Quit();
     SDL_Quit();
 }
 
 void Graphics::clear() {
-    SDL_SetRenderDrawColor(renderer, 20, 20, 30, 255); // Dark blue background
-    SDL_RenderClear(renderer);
+    SDL_SetRenderDrawColor(renderer_, 20, 20, 30, 255);
+    SDL_RenderClear(renderer_);
 }
 
-void Graphics::drawCircle(const phys::Body& body, const std::array<int, 4>& color) {
-    int r = std::max(1, (int)std::round(body.radius));
-    SDL_Texture* tex = getCircleTexture(r);
-
-    SDL_SetTextureColorMod(tex, (Uint8)color[0], (Uint8)color[1], (Uint8)color[2]);
-    SDL_SetTextureAlphaMod(tex, (Uint8)color[3]);
-
-    const phys::Vec2 p = body.pos;
-    SDL_Rect dst;
-    dst.w = r * 2;
-    dst.h = r * 2;
-    dst.x = (int)std::round(p.x) - r;
-    dst.y = windowHeight - ((int)std::round(p.y) + r); // keep your Y-flip convention
-
-    SDL_RenderCopy(renderer, tex, nullptr, &dst);
-}
-
-void Graphics::drawText(const std::string& text, int x, int y, const std::array<int, 4>& color) {
-    if (!font) return;
-    SDL_Color sdlColor = { (Uint8)color[0], (Uint8)color[1], (Uint8)color[2], (Uint8)color[3] };
-    SDL_Surface* surface = TTF_RenderText_Blended(font, text.c_str(), sdlColor);
-    if (!surface) return;
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-    if (!texture) {
-        SDL_FreeSurface(surface);
-        return;
+void Graphics::drawCircle(const phys::Body& body, const Color& color) {
+    const int r = std::max(1, static_cast<int>(std::lround(body.radius)));
+    SDL_Texture* tex = circleTexture(r);
+    SDL_SetTextureColorMod(tex, static_cast<Uint8>(color[0]), static_cast<Uint8>(color[1]), static_cast<Uint8>(color[2]));
+    SDL_SetTextureAlphaMod(tex, static_cast<Uint8>(color[3]));
+    SDL_Rect dst{sx(body.pos.x) - r, sy(body.pos.y) - r, 2 * r, 2 * r};
+    SDL_RenderCopy(renderer_, tex, nullptr, &dst);
+    if (r >= 4) {  // spin marker: a radius drawn at the body's angle
+        const phys::Vec2 tip = body.pos + phys::Vec2{std::cos(body.angle), std::sin(body.angle)} * body.radius;
+        drawLine(body.pos, tip, {20, 20, 30, 255});
     }
-    SDL_Rect dst = { x, y, surface->w, surface->h };
-    SDL_RenderCopy(renderer, texture, nullptr, &dst);
-    SDL_DestroyTexture(texture);
+}
+
+void Graphics::drawLine(phys::Vec2 a, phys::Vec2 b, const Color& c) {
+    SDL_SetRenderDrawColor(renderer_, static_cast<Uint8>(c[0]), static_cast<Uint8>(c[1]), static_cast<Uint8>(c[2]),
+                           static_cast<Uint8>(c[3]));
+    SDL_RenderDrawLine(renderer_, sx(a.x), sy(a.y), sx(b.x), sy(b.y));
+}
+
+void Graphics::drawGrid(double cell, const Color& c) {
+    if (cell < 2.0) return;
+    SDL_SetRenderDrawColor(renderer_, static_cast<Uint8>(c[0]), static_cast<Uint8>(c[1]), static_cast<Uint8>(c[2]),
+                           static_cast<Uint8>(c[3]));
+    for (double x = 0.0; x <= width_; x += cell) SDL_RenderDrawLine(renderer_, sx(x), 0, sx(x), height_);
+    for (double y = 0.0; y <= height_; y += cell) SDL_RenderDrawLine(renderer_, 0, sy(y), width_, sy(y));
+}
+
+void Graphics::drawText(const std::string& text, int x, int y, const Color& c) {
+    if (!font_ || text.empty()) return;
+    SDL_Color col{static_cast<Uint8>(c[0]), static_cast<Uint8>(c[1]), static_cast<Uint8>(c[2]), static_cast<Uint8>(c[3])};
+    SDL_Surface* surface = TTF_RenderText_Blended(font_, text.c_str(), col);
+    if (!surface) return;
+    if (SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer_, surface)) {
+        SDL_Rect dst{x, y, surface->w, surface->h};
+        SDL_RenderCopy(renderer_, texture, nullptr, &dst);
+        SDL_DestroyTexture(texture);
+    }
     SDL_FreeSurface(surface);
 }
 
+void Graphics::drawHud(const std::vector<std::string>& lines) {
+    if (!font_) return;
+    const int lineH = TTF_FontLineSkip(font_);
+    SDL_Rect bg{6, 6, 330, lineH * static_cast<int>(lines.size()) + 8};
+    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 150);
+    SDL_RenderFillRect(renderer_, &bg);
+    int y = 10;
+    for (const auto& l : lines) {
+        drawText(l, 12, y, {235, 235, 235, 255});
+        y += lineH;
+    }
+}
+
 void Graphics::present() {
-    // FPS update happens once per rendered frame
-    Uint64 now = SDL_GetPerformanceCounter();
-    double dt = static_cast<double>(now - lastCounter_) /
-                static_cast<double>(SDL_GetPerformanceFrequency());
+    const Uint64 now = SDL_GetPerformanceCounter();
+    fpsTime_ += static_cast<double>(now - lastCounter_) / static_cast<double>(SDL_GetPerformanceFrequency());
     lastCounter_ = now;
-
-    fpsFrameCount_++;
-    fpsAccumTime_ += dt;
-
-    // this basically prevents fps changes every milisec
-    // we average out fps over 0.5 to 1sec
-    if (fpsAccumTime_ >= 0.5) {
-        fps_ = static_cast<double>(fpsFrameCount_) / fpsAccumTime_;
-        fpsFrameCount_ = 0;
-        fpsAccumTime_ = 0.0;
+    if (++fpsFrames_, fpsTime_ >= 0.5) {
+        fps_ = fpsFrames_ / fpsTime_;
+        fpsFrames_ = 0;
+        fpsTime_ = 0.0;
     }
-
-    SDL_RenderPresent(renderer);
+    SDL_RenderPresent(renderer_);
 }
 
-bool Graphics::processEvents() {
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        if (event.type == SDL_QUIT) return false;
-    }
-    return true;
+void Graphics::updateSize(int width, int height) {
+    width_ = width;
+    height_ = height;
 }
 
-void Graphics::updateSize(int width, int height)
-{
-    windowHeight = height;
-    windowWidth = width;
-}
-
-void Graphics::printPhysicsInfo(double totalKE, double totalPE) {
-    if (!font) return;
-
-    // hide info text on very small windows
-    if (windowWidth < 320 || windowHeight < 240) return;
-
-    // Relative placement
-    int x = static_cast<int>(windowWidth * 0.02);
-    int y = static_cast<int>(windowHeight * 0.02);
-    int lineStep = std::max(16, static_cast<int>(windowHeight * 0.04));
-
-    std::array<int, 4> color = {255, 255, 255, 255};
-
-    std::ostringstream ss;
-    ss << std::fixed << std::setprecision(2);
-
-    // FPS
-    ss.str("");
-    ss.clear();
-    ss << "FPS: " << fps_;
-    drawText(ss.str(), x, y, color);
-    y += lineStep;
-
-    // KE only
-    ss.str("");
-    ss.clear();
-    ss << "Total KE: " << totalKE;
-    drawText(ss.str(), x, y, color);
-    y += lineStep; // <-- ADD THIS LINE
-
-    //PE only
-    ss.str(""); ss.clear();
-    ss << "Total PE: " << totalPE;
-    drawText(ss.str(), x, y, color);
-    y += lineStep;
-
-    //total
-    ss.str(""); ss.clear();
-    ss << "Total E: " << (totalKE + totalPE);
-    drawText(ss.str(), x, y, color);
-}
-
-SDL_Texture* Graphics::createCircleTexture(int radius) {
-    int d = radius * 2;
-    SDL_Texture* tex = SDL_CreateTexture(
-        renderer,
-        SDL_PIXELFORMAT_RGBA8888,
-        SDL_TEXTUREACCESS_TARGET,
-        d, d
-    );
-    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
-
-    SDL_Texture* oldTarget = SDL_GetRenderTarget(renderer);
-    SDL_SetRenderTarget(renderer, tex);
-
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-    SDL_RenderClear(renderer);
-
-    // draw filled white circle into texture
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    for (int y = -radius; y <= radius; ++y) {
-        int xSpan = (int)std::sqrt(radius * radius - y * y);
-        SDL_RenderDrawLine(renderer, radius - xSpan, radius + y, radius + xSpan, radius + y);
-    }
-
-    SDL_SetRenderTarget(renderer, oldTarget);
-    return tex;
-}
-
-SDL_Texture* Graphics::getCircleTexture(int radius) {
+SDL_Texture* Graphics::circleTexture(int radius) {
     auto it = circleCache_.find(radius);
     if (it != circleCache_.end()) return it->second;
-
-    SDL_Texture* tex = createCircleTexture(radius);
+    const int d = radius * 2;
+    SDL_Texture* tex = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, d, d);
+    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+    SDL_Texture* old = SDL_GetRenderTarget(renderer_);
+    SDL_SetRenderTarget(renderer_, tex);
+    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 0);
+    SDL_RenderClear(renderer_);
+    SDL_SetRenderDrawColor(renderer_, 255, 255, 255, 255);
+    for (int y = -radius; y <= radius; ++y) {
+        const int span = static_cast<int>(std::sqrt(static_cast<double>(radius * radius - y * y)));
+        SDL_RenderDrawLine(renderer_, radius - span, radius + y, radius + span, radius + y);
+    }
+    SDL_SetRenderTarget(renderer_, old);
     circleCache_[radius] = tex;
     return tex;
+}
+
+bool Graphics::saveScreenshot(const std::string& path) {
+    SDL_Surface* shot = SDL_CreateRGBSurfaceWithFormat(0, width_, height_, 32, SDL_PIXELFORMAT_ARGB8888);
+    if (!shot) return false;
+    if (!renderer_) {
+        SDL_FreeSurface(shot);
+        return false;
+    }
+    const bool ok = SDL_RenderReadPixels(renderer_, nullptr, SDL_PIXELFORMAT_ARGB8888, shot->pixels, shot->pitch) == 0 &&
+                    SDL_SaveBMP(shot, path.c_str()) == 0;
+    SDL_FreeSurface(shot);
+    return ok;
 }
