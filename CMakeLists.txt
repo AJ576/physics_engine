@@ -68,6 +68,9 @@ add_executable(physics_bench bench/bench_main.cpp)
 target_link_libraries(physics_bench PRIVATE physics_core phys_warnings)
 target_compile_definitions(physics_bench PRIVATE PHYS_BENCH_BUILD_INFO="${PHYS_BUILD_INFO}")
 
+add_executable(physics_integrators bench/integrator_study.cpp)
+target_link_libraries(physics_integrators PRIVATE physics_core phys_warnings)
+
 
 # ---------------------------------------------------------------------------
 # physics_demo: optional SDL2 front end.
