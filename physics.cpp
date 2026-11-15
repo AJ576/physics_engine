@@ -450,9 +450,10 @@ void WorldPhysics::runPhysicsNaive(const TimeManager& TIME)
     }
 
     for (size_t i = 0; i < bodies.size(); i++) {
-        for (const auto& spring : springs_) {
-            if (isBallOnSpring(bodies[i], spring)) {
-                applySpringImpulse(bodies[i], spring);
+        for (auto& spring : springs_) {
+            bool hitFromAbove = true;
+            if (detectSpringHit(bodies[i], spring, hitFromAbove)) {
+                applySpringImpulse(bodies[i], spring, hitFromAbove);
             }
         }
     }
@@ -506,9 +507,10 @@ StepProfile WorldPhysics::runPhysicsProfiled(const TimeManager& TIME)
     // 4. Springs
     t0 = Clock::now();
     for (size_t i = 0; i < bodies.size(); i++) {
-        for (const auto& spring : springs_) {
-            if (isBallOnSpring(bodies[i], spring)) {
-                applySpringImpulse(bodies[i], spring);
+        for (auto& spring : springs_) {
+            bool hitFromAbove = true;
+            if (detectSpringHit(bodies[i], spring, hitFromAbove)) {
+                applySpringImpulse(bodies[i], spring, hitFromAbove);
             }
         }
     }
@@ -596,9 +598,10 @@ StepProfile WorldPhysics::runPhysicsNaiveProfiled(const TimeManager& TIME)
 
     t0 = Clock::now();
     for (size_t i = 0; i < bodies.size(); i++) {
-        for (const auto& spring : springs_) {
-            if (isBallOnSpring(bodies[i], spring)) {
-                applySpringImpulse(bodies[i], spring);
+        for (auto& spring : springs_) {
+            bool hitFromAbove = true;
+            if (detectSpringHit(bodies[i], spring, hitFromAbove)) {
+                applySpringImpulse(bodies[i], spring, hitFromAbove);
             }
         }
     }

@@ -457,9 +457,11 @@ void test_spring_mechanics() {
     Spring spring(200.0, 0.0, 100.0, 20.0, 500.0); // bottom at 0, height 20
     RigidBody ball(5.0, 1.0, {250.0, 22.0}, {0.0, -30.0}); // ball bottom at 17 <= 20
 
-    ASSERT_TRUE(isBallOnSpring(ball, spring));
+    bool hitFromAbove = false;
+    ASSERT_TRUE(detectSpringHit(ball, spring, hitFromAbove));
+    ASSERT_TRUE(hitFromAbove);
 
-    applySpringImpulse(ball, spring);
+    applySpringImpulse(ball, spring, hitFromAbove);
 
     auto vel = ball.getVelocity();
     auto pos = ball.getPosition();
