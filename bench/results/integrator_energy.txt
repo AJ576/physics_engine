@@ -1,0 +1,12 @@
+STANDALONE spring-mass energy test (NOT an engine WorldPhysics measurement)
+System: 1D harmonic oscillator m=1, k=4*pi^2, x0=1, v0=0, dt=1/60, steps=10000
+E0=1.97392088e+01
+Explicit Euler max relative |E-E0|/E0:              2.32528161e+47
+Semi-implicit Euler max relative |E-E0|/E0:          5.52529128e-02
+Engine-style kinematics (formula copy) max rel drift: 5.66956551e+23
+RigidBody::numericalIntegration + F=-k x max rel:    5.66956551e+23
+Final E/E0 explicit:      2.32528161e+47
+Final E/E0 semi-implicit: 1.00082540e+00
+Final E/E0 engine-style:  5.66956551e+23
+Final E/E0 RigidBody:     5.66956551e+23
+Label: standalone analytic test. WorldPhysics springs are not a mass-spring network.

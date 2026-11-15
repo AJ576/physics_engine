@@ -100,6 +100,7 @@ bool detectSpringHit(const RigidBody& ball, const Spring& spring, bool& hitFromA
 
 void applySpringImpulse(RigidBody& ball, Spring& spring, bool hitFromAbove) {
     auto vel = ball.getVelocity();
+    auto pos = ball.getPosition();
     double r = ball.getRadius();
     double ballBottom = pos[1] - r;
     double springTop = spring.getY() + spring.getHeight();

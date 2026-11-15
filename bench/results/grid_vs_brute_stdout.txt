@@ -1,0 +1,34 @@
+physics_bench seed=42 e=0.7 dt=0.0166667 runs=5 warmup=60 timed=180 out=bench/results
+
+=== GRID VS BRUTE (constant density, gravity off) ===
+Brute-force narrowphase is a bench-local copy of physics.cpp.
+PAIRS const-density N=500 grid=2170 brute=124750 brute/grid=57.49
+PAIRS const-density N=1000 grid=4528 brute=499500 brute/grid=110.31
+PAIRS const-density N=2000 grid=8999 brute=1999000 brute/grid=222.14
+PAIRS const-density N=5000 grid=22592 brute=12497500 brute/grid=553.18
+PAIRS const-density N=10000 grid=45936 brute=49995000 brute/grid=1088.36
+PAIRS const-density N=20000 grid=92372 brute=199990000 brute/grid=2165.05
+PAIRS fixed-arena N=500 grid=217 brute=124750 brute/grid=574.88
+PAIRS fixed-arena N=1000 grid=935 brute=499500 brute/grid=534.22
+PAIRS fixed-arena N=2000 grid=3627 brute=1999000 brute/grid=551.14
+PAIRS fixed-arena N=5000 grid=22592 brute=12497500 brute/grid=553.18
+PAIRS fixed-arena N=10000 grid=91683 brute=49995000 brute/grid=545.30
+PAIRS fixed-arena N=20000 grid=367261 brute=199990000 brute/grid=544.54
+GRID const-density N=500 arena=253.0x189.7  mean 0.060 ± 0.004 ms  p50 0.056 ± 0.000 ms  p99 0.125 ± 0.018 ms  max 0.155 ± 0.047 ms
+BRUTE const-density N=500 arena=253.0x189.7  mean 0.112 ± 0.002 ms  p50 0.107 ± 0.001 ms  p99 0.201 ± 0.035 ms  max 0.231 ± 0.030 ms
+SPEEDUP const-density N=500 brute/grid=1.88x
+GRID const-density N=1000 arena=357.8x268.3  mean 0.181 ± 0.059 ms  p50 0.124 ± 0.035 ms  p99 0.528 ± 1.203 ms  max 0.751 ± 3.864 ms
+BRUTE const-density N=1000 arena=357.8x268.3  mean 0.500 ± 0.043 ms  p50 0.407 ± 0.019 ms  p99 1.118 ± 0.134 ms  max 1.233 ± 0.205 ms
+SPEEDUP const-density N=1000 brute/grid=2.77x
+GRID const-density N=2000 arena=506.0x379.5  mean 0.280 ± 0.012 ms  p50 0.246 ± 0.003 ms  p99 0.516 ± 0.035 ms  max 2.093 ± 1.215 ms
+BRUTE const-density N=2000 arena=506.0x379.5  mean 3.947 ± 1.053 ms  p50 3.014 ± 0.849 ms  p99 7.555 ± 6.442 ms  max 9.326 ± 9.662 ms
+SPEEDUP const-density N=2000 brute/grid=14.11x
+GRID const-density N=5000 arena=800.0x600.0  mean 0.643 ± 0.014 ms  p50 0.605 ± 0.009 ms  p99 1.055 ± 0.098 ms  max 1.234 ± 0.089 ms
+BRUTE const-density N=5000 arena=800.0x600.0  mean 13.406 ± 2.299 ms  p50 12.900 ± 1.799 ms  p99 16.696 ± 11.339 ms  max 16.912 ± 12.417 ms
+SPEEDUP const-density N=5000 brute/grid=20.86x
+GRID const-density N=10000 arena=1131.4x848.5  mean 1.461 ± 0.163 ms  p50 1.309 ± 0.209 ms  p99 2.846 ± 0.324 ms  max 3.292 ± 1.407 ms
+BRUTE const-density N=10000 arena=1131.4x848.5  mean 68.457 ± 12.293 ms  p50 60.370 ± 12.319 ms  p99 97.442 ± 20.551 ms  max 99.565 ± 20.825 ms
+SPEEDUP const-density N=10000 brute/grid=46.85x
+GRID const-density N=20000 arena=1600.0x1200.0  mean 2.565 ± 0.091 ms  p50 2.544 ± 0.049 ms  p99 3.099 ± 0.365 ms  max 3.857 ± 0.744 ms
+BRUTE const-density N=20000 arena=1600.0x1200.0  mean 261.976 ± 15.050 ms  p50 259.964 ± 10.136 ms  p99 266.740 ± 95.315 ms  max 266.841 ± 99.250 ms
+SPEEDUP const-density N=20000 brute/grid=102.13x

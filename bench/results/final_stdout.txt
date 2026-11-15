@@ -1,0 +1,90 @@
+physics_bench seed=42 e=0.7 dt=0.0166667 runs=5 warmup=60 timed=180 out=bench/results
+
+=== SCALING (engine grid path, gravity off) ===
+GRID const-density N=500 arena=253.0x189.7  mean 0.042 ± 0.003 ms  p50 0.041 ± 0.001 ms  p99 0.098 ± 0.032 ms  max 0.107 ± 0.048 ms
+GRID const-density N=1000 arena=357.8x268.3  mean 0.086 ± 0.002 ms  p50 0.084 ± 0.002 ms  p99 0.152 ± 0.024 ms  max 0.181 ± 0.037 ms
+GRID const-density N=2000 arena=506.0x379.5  mean 0.168 ± 0.002 ms  p50 0.162 ± 0.002 ms  p99 0.257 ± 0.022 ms  max 0.280 ± 0.087 ms
+GRID const-density N=5000 arena=800.0x600.0  mean 0.440 ± 0.018 ms  p50 0.418 ± 0.010 ms  p99 0.673 ± 0.147 ms  max 0.762 ± 0.248 ms
+GRID const-density N=10000 arena=1131.4x848.5  mean 0.984 ± 0.146 ms  p50 0.889 ± 0.067 ms  p99 2.275 ± 1.907 ms  max 2.897 ± 2.541 ms
+GRID const-density N=20000 arena=1600.0x1200.0  mean 2.271 ± 0.440 ms  p50 2.093 ± 0.094 ms  p99 3.583 ± 6.227 ms  max 4.074 ± 25.730 ms
+GRID fixed-arena N=500 arena=800.0x600.0  mean 0.031 ± 0.000 ms  p50 0.031 ± 0.000 ms  p99 0.037 ± 0.008 ms  max 0.057 ± 0.010 ms
+GRID fixed-arena N=1000 arena=800.0x600.0  mean 0.069 ± 0.002 ms  p50 0.068 ± 0.001 ms  p99 0.102 ± 0.020 ms  max 0.137 ± 0.033 ms
+GRID fixed-arena N=2000 arena=800.0x600.0  mean 0.200 ± 0.001 ms  p50 0.196 ± 0.001 ms  p99 0.297 ± 0.012 ms  max 0.335 ± 0.023 ms
+GRID fixed-arena N=5000 arena=800.0x600.0  mean 0.431 ± 0.005 ms  p50 0.417 ± 0.003 ms  p99 0.605 ± 0.033 ms  max 0.709 ± 0.027 ms
+GRID fixed-arena N=10000 arena=800.0x600.0  mean 1.040 ± 0.037 ms  p50 1.045 ± 0.029 ms  p99 1.322 ± 0.385 ms  max 1.445 ± 0.501 ms
+GRID fixed-arena N=20000 arena=800.0x600.0  mean 3.030 ± 0.210 ms  p50 2.838 ± 0.190 ms  p99 4.846 ± 3.068 ms  max 5.714 ± 8.596 ms
+Largest listed N with median mean step <= 16.600 ms (const density): 20000
+Largest listed N with median mean step <= 16.600 ms (fixed arena): 20000
+
+=== EXTRA N (grid only, 3 runs x 60 steps) to locate 16.6 ms ===
+GRID const-density N=40000 arena=2262.7x1697.1  mean 3.648 ± 0.193 ms  p50 3.612 ± 0.143 ms  p99 4.469 ± 0.748 ms  max 4.838 ± 1.000 ms
+GRID const-density N=80000 arena=3200.0x2400.0  mean 10.920 ± 0.642 ms  p50 10.618 ± 0.111 ms  p99 15.596 ± 11.857 ms  max 18.100 ± 11.991 ms
+GRID const-density N=160000 arena=4525.5x3394.1  mean 25.001 ± 1.417 ms  p50 23.197 ± 0.255 ms  p99 45.242 ± 16.148 ms  max 45.773 ± 19.582 ms
+GRID fixed-arena N=40000 arena=800.0x600.0  mean 7.380 ± 0.548 ms  p50 7.153 ± 0.182 ms  p99 12.318 ± 8.100 ms  max 13.415 ± 13.776 ms
+GRID fixed-arena N=80000 arena=800.0x600.0  mean 22.352 ± 0.203 ms  p50 22.207 ± 0.063 ms  p99 23.704 ± 2.851 ms  max 23.838 ± 4.874 ms
+GRID fixed-arena N=160000 arena=800.0x600.0  mean 82.774 ± 2.887 ms  p50 80.288 ± 3.100 ms  p99 104.105 ± 14.026 ms  max 121.907 ± 8.938 ms
+Largest N with median mean step <= 16.600 ms (const density): 80000
+Largest N with median mean step <= 16.600 ms (fixed arena): 40000
+
+=== GRID VS BRUTE (constant density, gravity off) ===
+Brute-force narrowphase is a bench-local copy of physics.cpp.
+PAIRS const-density N=500 grid=2170 brute=124750 brute/grid=57.49
+PAIRS const-density N=1000 grid=4528 brute=499500 brute/grid=110.31
+PAIRS const-density N=2000 grid=8999 brute=1999000 brute/grid=222.14
+PAIRS const-density N=5000 grid=22592 brute=12497500 brute/grid=553.18
+PAIRS const-density N=10000 grid=45936 brute=49995000 brute/grid=1088.36
+PAIRS const-density N=20000 grid=92372 brute=199990000 brute/grid=2165.05
+PAIRS fixed-arena N=500 grid=217 brute=124750 brute/grid=574.88
+PAIRS fixed-arena N=1000 grid=935 brute=499500 brute/grid=534.22
+PAIRS fixed-arena N=2000 grid=3627 brute=1999000 brute/grid=551.14
+PAIRS fixed-arena N=5000 grid=22592 brute=12497500 brute/grid=553.18
+PAIRS fixed-arena N=10000 grid=91683 brute=49995000 brute/grid=545.30
+PAIRS fixed-arena N=20000 grid=367261 brute=199990000 brute/grid=544.54
+GRID const-density N=500 arena=253.0x189.7  mean 0.039 ± 0.001 ms  p50 0.040 ± 0.001 ms  p99 0.055 ± 0.006 ms  max 0.069 ± 0.018 ms
+BRUTE const-density N=500 arena=253.0x189.7  mean 0.109 ± 0.002 ms  p50 0.106 ± 0.001 ms  p99 0.142 ± 0.042 ms  max 0.144 ± 0.065 ms
+SPEEDUP const-density N=500 brute/grid=2.82x
+GRID const-density N=1000 arena=357.8x268.3  mean 0.083 ± 0.001 ms  p50 0.082 ± 0.001 ms  p99 0.112 ± 0.018 ms  max 0.159 ± 0.041 ms
+BRUTE const-density N=1000 arena=357.8x268.3  mean 0.404 ± 0.002 ms  p50 0.402 ± 0.001 ms  p99 0.445 ± 0.015 ms  max 0.454 ± 0.059 ms
+SPEEDUP const-density N=1000 brute/grid=4.90x
+GRID const-density N=2000 arena=506.0x379.5  mean 0.165 ± 0.001 ms  p50 0.163 ± 0.002 ms  p99 0.206 ± 0.003 ms  max 0.238 ± 0.020 ms
+BRUTE const-density N=2000 arena=506.0x379.5  mean 1.895 ± 0.022 ms  p50 1.900 ± 0.029 ms  p99 2.214 ± 0.113 ms  max 2.296 ± 0.122 ms
+SPEEDUP const-density N=2000 brute/grid=11.48x
+GRID const-density N=5000 arena=800.0x600.0  mean 0.416 ± 0.002 ms  p50 0.412 ± 0.004 ms  p99 0.473 ± 0.009 ms  max 0.491 ± 0.009 ms
+BRUTE const-density N=5000 arena=800.0x600.0  mean 12.867 ± 0.042 ms  p50 12.751 ± 0.029 ms  p99 13.940 ± 0.387 ms  max 14.010 ± 0.391 ms
+SPEEDUP const-density N=5000 brute/grid=30.92x
+GRID const-density N=10000 arena=1131.4x848.5  mean 0.832 ± 0.002 ms  p50 0.817 ± 0.007 ms  p99 0.939 ± 0.011 ms  max 0.974 ± 0.046 ms
+BRUTE const-density N=10000 arena=1131.4x848.5  mean 54.344 ± 3.194 ms  p50 54.535 ± 4.095 ms  p99 56.138 ± 1.646 ms  max 56.209 ± 1.764 ms
+SPEEDUP const-density N=10000 brute/grid=65.30x
+GRID const-density N=20000 arena=1600.0x1200.0  mean 1.952 ± 0.004 ms  p50 1.955 ± 0.002 ms  p99 2.114 ± 0.058 ms  max 2.197 ± 0.075 ms
+BRUTE const-density N=20000 arena=1600.0x1200.0  mean 258.144 ± 32.229 ms  p50 259.446 ± 27.877 ms  p99 271.378 ± 85.996 ms  max 271.770 ± 88.146 ms
+SPEEDUP const-density N=20000 brute/grid=132.28x
+
+=== CONSERVATION ===
+CONSERVATION TEST (engine WorldPhysics::runPhysics)
+Setup: 100 non-overlapping circles, e=1, gravity=(0,0), border=1e12, spawned at ~1e5 so min-walls at x=r,y=r are unreachable
+Steps: 5000 at dt=1/60, seed=42
+Initial px=1.4414506548e+03 py=-2.4388131996e+03 |p|=2.8329471955e+03
+Initial KE=1.0318815292e+06
+Final   px=1.4414506548e+03 py=-2.4388131996e+03 |p|=2.8329471955e+03
+Final   KE=1.0318815292e+06
+Relative |p| drift at end: 1.1236465901e-15
+Relative KE drift at end:  2.2563699132e-16
+Max relative |p| drift over run: 2.7288560046e-15
+Max relative KE drift over run:  4.5127398264e-16
+px change: 2.2737367544e-13  py change: -3.6379788071e-12
+Note: positional correction does not modify velocity, so KE only changes via impulses.
+With e=1, pairwise elastic impulses conserve KE; measured drift is roundoff if no walls.
+
+=== INTEGRATOR ENERGY (STANDALONE) ===
+STANDALONE spring-mass energy test (NOT an engine WorldPhysics measurement)
+System: 1D harmonic oscillator m=1, k=4*pi^2, x0=1, v0=0, dt=1/60, steps=10000
+E0=1.97392088e+01
+Explicit Euler max relative |E-E0|/E0:              2.32528161e+47
+Semi-implicit Euler max relative |E-E0|/E0:          5.52529128e-02
+Engine-style kinematics (formula copy) max rel drift: 5.66956551e+23
+RigidBody::numericalIntegration + F=-k x max rel:    5.66956551e+23
+Final E/E0 explicit:      2.32528161e+47
+Final E/E0 semi-implicit: 1.00082540e+00
+Final E/E0 engine-style:  5.66956551e+23
+Final E/E0 RigidBody:     5.66956551e+23
+Label: standalone analytic test. WorldPhysics springs are not a mass-spring network.

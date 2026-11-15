@@ -276,8 +276,12 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
     }
 
     //grid collision starts here
-    //clear the grid
-    grid.clear();
+    // Reuse cell vectors instead of grid.clear() (which frees every bucket).
+    // Drop keys that became empty so the map does not accumulate every cell
+    // a body ever visited.
+    for (auto& entry : grid) {
+        entry.second.clear();
+    }
 
     //rebuild the grid
     for (size_t i = 0; i<bodies.size(); i++)
@@ -292,6 +296,14 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
         long long key = ((long long)cell_x << 32) | (unsigned int)cell_y;
 
         grid[key].push_back(&bodies[i]);
+    }
+
+    for (auto it = grid.begin(); it != grid.end(); ) {
+        if (it->second.empty()) {
+            it = grid.erase(it);
+        } else {
+            ++it;
+        }
     }
 
     // //do this AFTER numerical integration
@@ -322,6 +334,9 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
     {
         long long key = entry.first;
         std::vector<RigidBody*>& cell = entry.second;
+        if (cell.empty()) {
+            continue;
+        }
 
         //unpack the coords from key
         int x = key >> 32;
@@ -348,7 +363,7 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
             long long nkey = ((long long)nx << 32) | (unsigned int)ny;
             //if key exists
             auto it = grid.find(nkey);
-            if (it != grid.end())
+            if (it != grid.end() && !it->second.empty())
             {
                 auto& ncell = it->second;
 

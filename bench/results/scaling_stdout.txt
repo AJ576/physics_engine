@@ -1,0 +1,27 @@
+physics_bench seed=42 e=0.7 dt=0.0166667 runs=5 warmup=60 timed=180 out=bench/results
+
+=== SCALING (engine grid path, gravity off) ===
+GRID const-density N=500 arena=253.0x189.7  mean 0.062 ± 0.004 ms  p50 0.056 ± 0.001 ms  p99 0.132 ± 0.027 ms  max 0.187 ± 0.025 ms
+GRID const-density N=1000 arena=357.8x268.3  mean 0.127 ± 0.005 ms  p50 0.120 ± 0.002 ms  p99 0.246 ± 0.027 ms  max 0.300 ± 0.072 ms
+GRID const-density N=2000 arena=506.0x379.5  mean 0.246 ± 0.007 ms  p50 0.243 ± 0.004 ms  p99 0.299 ± 0.072 ms  max 0.405 ± 0.078 ms
+GRID const-density N=5000 arena=800.0x600.0  mean 0.656 ± 0.227 ms  p50 0.580 ± 0.027 ms  p99 0.999 ± 4.000 ms  max 1.051 ± 6.230 ms
+GRID const-density N=10000 arena=1131.4x848.5  mean 1.255 ± 0.137 ms  p50 1.183 ± 0.126 ms  p99 1.778 ± 0.511 ms  max 1.902 ± 0.675 ms
+GRID const-density N=20000 arena=1600.0x1200.0  mean 2.540 ± 0.103 ms  p50 2.523 ± 0.052 ms  p99 2.945 ± 1.508 ms  max 3.209 ± 2.224 ms
+GRID fixed-arena N=500 arena=800.0x600.0  mean 0.044 ± 0.001 ms  p50 0.044 ± 0.001 ms  p99 0.052 ± 0.003 ms  max 0.055 ± 0.011 ms
+GRID fixed-arena N=1000 arena=800.0x600.0  mean 0.095 ± 0.003 ms  p50 0.095 ± 0.001 ms  p99 0.113 ± 0.038 ms  max 0.146 ± 0.046 ms
+GRID fixed-arena N=2000 arena=800.0x600.0  mean 0.262 ± 0.019 ms  p50 0.246 ± 0.007 ms  p99 0.425 ± 0.099 ms  max 0.514 ± 0.154 ms
+GRID fixed-arena N=5000 arena=800.0x600.0  mean 0.606 ± 0.028 ms  p50 0.593 ± 0.021 ms  p99 0.863 ± 0.134 ms  max 0.931 ± 0.181 ms
+GRID fixed-arena N=10000 arena=800.0x600.0  mean 1.455 ± 0.187 ms  p50 1.408 ± 0.053 ms  p99 2.540 ± 4.887 ms  max 3.094 ± 7.450 ms
+GRID fixed-arena N=20000 arena=800.0x600.0  mean 3.454 ± 0.353 ms  p50 3.151 ± 0.109 ms  p99 6.606 ± 5.898 ms  max 15.540 ± 21.157 ms
+Largest listed N with median mean step <= 16.600 ms (const density): 20000
+Largest listed N with median mean step <= 16.600 ms (fixed arena): 20000
+
+=== EXTRA N (grid only, 3 runs x 60 steps) to locate 16.6 ms ===
+GRID const-density N=40000 arena=2262.7x1697.1  mean 4.320 ± 0.459 ms  p50 4.357 ± 0.480 ms  p99 4.572 ± 0.457 ms  max 4.620 ± 0.484 ms
+GRID const-density N=80000 arena=3200.0x2400.0  mean 12.336 ± 0.831 ms  p50 12.349 ± 0.331 ms  p99 13.789 ± 3.547 ms  max 14.288 ± 5.230 ms
+GRID const-density N=160000 arena=4525.5x3394.1  mean 25.664 ± 0.249 ms  p50 25.466 ± 0.122 ms  p99 28.464 ± 1.387 ms  max 29.063 ± 2.435 ms
+GRID fixed-arena N=40000 arena=800.0x600.0  mean 6.712 ± 0.623 ms  p50 6.398 ± 0.766 ms  p99 8.451 ± 0.380 ms  max 8.795 ± 0.255 ms
+GRID fixed-arena N=80000 arena=800.0x600.0  mean 26.544 ± 2.106 ms  p50 25.115 ± 0.949 ms  p99 49.205 ± 24.314 ms  max 60.636 ± 47.046 ms
+GRID fixed-arena N=160000 arena=800.0x600.0  mean 84.926 ± 3.840 ms  p50 81.402 ± 2.294 ms  p99 135.470 ± 34.888 ms  max 137.879 ± 36.759 ms
+Largest N with median mean step <= 16.600 ms (const density): 80000
+Largest N with median mean step <= 16.600 ms (fixed arena): 40000

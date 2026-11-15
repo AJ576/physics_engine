@@ -1,0 +1,14 @@
+CONSERVATION TEST (engine WorldPhysics::runPhysics)
+Setup: 100 non-overlapping circles, e=1, gravity=(0,0), border=1e12, spawned at ~1e5 so min-walls at x=r,y=r are unreachable
+Steps: 5000 at dt=1/60, seed=42
+Initial px=1.4414506548e+03 py=-2.4388131996e+03 |p|=2.8329471955e+03
+Initial KE=1.0318815292e+06
+Final   px=1.4414506548e+03 py=-2.4388131996e+03 |p|=2.8329471955e+03
+Final   KE=1.0318815292e+06
+Relative |p| drift at end: 1.1236465901e-15
+Relative KE drift at end:  2.2563699132e-16
+Max relative |p| drift over run: 2.7288560046e-15
+Max relative KE drift over run:  4.5127398264e-16
+px change: 2.2737367544e-13  py change: -3.6379788071e-12
+Note: positional correction does not modify velocity, so KE only changes via impulses.
+With e=1, pairwise elastic impulses conserve KE; measured drift is roundoff if no walls.

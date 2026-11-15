@@ -1,0 +1,18 @@
+macOS `sample` of physics_bench --profile 80000 30
+Process: physics_bench pid 85306
+Date: 2026-10-13 14:06:58 -0400
+Duration: 20 s, 1 ms sampling interval
+Leaf samples in "Sort by top of stack": 16032
+Binary: Release -O3 -DNDEBUG, AppleClang 17, arm64 (before grid-reuse opt)
+
+Top 5 leaf functions:
+  62.48%  10016  WorldPhysics::runPhysics (inlined collision / grid loops)
+  13.06%   2094  <deduplicated_symbol> in physics_bench (grid insert / inlined helpers)
+   5.05%    810  _xzm_xzone_malloc_tiny
+   5.00%    802  _xzm_free_main
+   3.52%    565  RigidBody::updateColorFromSpeed
+
+Grouped allocator leaf (malloc/free/new/delete + memmove): ~16.6%
+Inclusive first-level samples on grid rebuild offsets (+380,+480,+744,+716,+540,+520): 5444 / 16032 = 33.96%
+
+Full dump: bench/results/sample.txt

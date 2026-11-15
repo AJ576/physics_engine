@@ -1,3 +1,4 @@
 physics_engine
 build/
+build_release/
 .cache/

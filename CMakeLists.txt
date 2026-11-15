@@ -51,3 +51,12 @@ else()
     target_include_directories(physics_engine PRIVATE ${SDL2_TTF_INCLUDE_DIRS})
     target_link_libraries(physics_engine PRIVATE ${SDL2_TTF_LIBRARY})
 endif()
+
+# Headless benchmark: engine sources only, no SDL.
+add_executable(physics_bench
+    bench/physics_bench.cpp
+    physics.cpp
+    rigidBody.cpp
+    spring.cpp
+)
+target_include_directories(physics_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
