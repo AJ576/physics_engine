@@ -63,8 +63,30 @@ int World::addBody(const Body& b) {
     return static_cast<int>(bodies_.size()) - 1;
 }
 
+int World::addSpring(const Spring& s) {
+    springs_.push_back(s);
+    return static_cast<int>(springs_.size()) - 1;
+}
+
+int World::addDistanceConstraint(int a, int b) {
+    DistanceConstraint c;
+    c.a = a;
+    c.b = b;
+    c.length = (bodies_[static_cast<std::size_t>(b)].pos - bodies_[static_cast<std::size_t>(a)].pos).length();
+    return addDistanceConstraint(c);
+}
+
+int World::addDistanceConstraint(const DistanceConstraint& c) {
+    joints_.push_back(c);
+    jointState_.push_back({});
+    return static_cast<int>(joints_.size()) - 1;
+}
+
 void World::clear() {
     bodies_.clear();
+    springs_.clear();
+    joints_.clear();
+    jointState_.clear();
     contacts_.clear();
     impulseCache_.clear();
     grid_.clear();
@@ -78,6 +100,7 @@ double World::restitutionThreshold() const {
 // --------------------------------------------------------------------- step
 void World::step() {
     stats_ = {};
+    applyForces();
     integrateVelocities();
     collide();
     prepareContacts();
@@ -88,6 +111,23 @@ void World::step() {
     solvePositions();
     clampFastMotion();
     integratePositions();
+}
+
+void World::applyForces() {
+    // Hooke spring with damping along the spring axis $u$:
+    // $f = k(\ell - \ell_0) + c\,(v_b - v_a)\cdot u$, applied as $+f u$ on a and $-f u$ on b,
+    // i.e. $F_b = -k(\ell - \ell_0)u - c\,\dot{\ell}\,u$.
+    for (const Spring& s : springs_) {
+        Body& A = bodies_[static_cast<std::size_t>(s.a)];
+        Body& B = bodies_[static_cast<std::size_t>(s.b)];
+        const Vec2 d = B.pos - A.pos;
+        const double len = d.length();
+        if (len < 1e-12) continue;
+        const Vec2 u = d / len;
+        const double f = s.stiffness * (len - s.restLength) + s.damping * dot(B.vel - A.vel, u);
+        A.force += u * f;
+        B.force -= u * f;
+    }
 }
 
 void World::integrateVelocities() {
@@ -343,6 +383,21 @@ void World::prepareContacts() {
         }
         c.relativeVelocity = dot(vB - vA, c.normal);
     }
+    // Distance constraints: axis, error and effective mass at the current positions.
+    for (std::size_t k = 0; k < joints_.size(); ++k) {
+        const DistanceConstraint& j = joints_[k];
+        JointState& s = jointState_[k];
+        const Body& A = bodies_[static_cast<std::size_t>(j.a)];
+        const Body& B = bodies_[static_cast<std::size_t>(j.b)];
+        const Vec2 d = B.pos - A.pos;
+        const double len = d.length();
+        s.u = len > 1e-12 ? d / len : Vec2{1.0, 0.0};
+        s.error = len - j.length;
+        const double k2 = A.invMass + B.invMass;
+        s.mass = k2 > 0.0 ? 1.0 / k2 : 0.0;
+        s.pseudoImpulse = 0.0;
+        if (!cfg_.warmStarting) s.impulse = 0.0;
+    }
 }
 
 void World::warmStart() {
@@ -361,6 +416,13 @@ void World::warmStart() {
             B.angVel += B.invInertia * cross(c.rb, P);
         }
     }
+    for (std::size_t k = 0; k < joints_.size(); ++k) {
+        const JointState& s = jointState_[k];
+        Body& A = bodies_[static_cast<std::size_t>(joints_[k].a)];
+        Body& B = bodies_[static_cast<std::size_t>(joints_[k].b)];
+        A.vel -= s.u * (s.impulse * A.invMass);
+        B.vel += s.u * (s.impulse * B.invMass);
+    }
 }
 
 void World::solveVelocities() {
@@ -371,6 +433,18 @@ void World::solveVelocities() {
     double zeroW = 0.0;
 
     for (int it = 0; it < cfg_.velocityIterations; ++it) {
+        for (std::size_t k = 0; k < joints_.size(); ++k) {
+            JointState& s = jointState_[k];
+            Body& A = bodies_[static_cast<std::size_t>(joints_[k].a)];
+            Body& B = bodies_[static_cast<std::size_t>(joints_[k].b)];
+            const double target = baumgarte ? -cfg_.baumgarte * s.error * invDt : 0.0;
+            const double vn = dot(B.vel - A.vel, s.u);
+            const double lambda = -s.mass * (vn - target);
+            s.impulse += lambda;
+            A.vel -= s.u * (lambda * A.invMass);
+            B.vel += s.u * (lambda * B.invMass);
+        }
+
         for (Contact& c : contacts_) {
             Body& A = bodies_[static_cast<std::size_t>(c.a)];
             const bool wall = c.b < 0;
@@ -453,7 +527,7 @@ void World::storeImpulses() {
 }
 
 void World::solvePositions() {
-    // Split impulse: penetration is removed with pseudo
+    // Split impulse: penetration and joint drift are removed with pseudo
     // velocities that move positions this step but are never added to the
     // real velocities, so position correction does not add kinetic energy.
     if (cfg_.positionCorrection != PositionCorrection::SplitImpulse) return;
@@ -461,6 +535,15 @@ void World::solvePositions() {
     const double invDt = 1.0 / cfg_.dt;
     const double beta = cfg_.baumgarte;
     for (int it = 0; it < cfg_.positionIterations; ++it) {
+        for (std::size_t k = 0; k < joints_.size(); ++k) {
+            JointState& s = jointState_[k];
+            const auto a = static_cast<std::size_t>(joints_[k].a), b = static_cast<std::size_t>(joints_[k].b);
+            const double vn = dot(pseudoVel_[b] - pseudoVel_[a], s.u);
+            const double lambda = -s.mass * (vn + beta * s.error * invDt);
+            s.pseudoImpulse += lambda;
+            pseudoVel_[a] -= s.u * (lambda * bodies_[a].invMass);
+            pseudoVel_[b] += s.u * (lambda * bodies_[b].invMass);
+        }
         for (Contact& c : contacts_) {
             if (c.separation >= -cfg_.slop) continue;
             const auto a = static_cast<std::size_t>(c.a);
@@ -628,6 +711,11 @@ double World::potentialEnergy() const {
     double pe = 0.0;
     for (const Body& b : bodies_)
         if (!b.isStatic()) pe -= b.mass * dot(cfg_.gravity, b.pos);
+    for (const Spring& s : springs_) {
+        const double stretch =
+            (bodies_[static_cast<std::size_t>(s.b)].pos - bodies_[static_cast<std::size_t>(s.a)].pos).length() - s.restLength;
+        pe += 0.5 * s.stiffness * stretch * stretch;
+    }
     return pe;
 }
 

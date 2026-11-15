@@ -1,19 +1,20 @@
 #pragma once
-// 2D rigid-body world: circles with rotation, Coulomb friction and
-// restitution, solved with sequential impulses.
+// 2D rigid-body world: circles with rotation, Coulomb friction, restitution,
+// Hooke springs and distance constraints, solved with sequential impulses.
 //
 // Units are pixels, seconds and kilograms. Gravity defaults to
 // $980\ \mathrm{px/s^2}$ downward ($y$ is up).
 //
 // One step of length $\Delta t$ (semi-implicit Euler with a velocity-level
 // constraint solver in between):
-//   1. velocities: $v \mathrel{+}= a\,\Delta t$, $\omega \mathrel{+}= \alpha\,\Delta t$
-//   2. broadphase (uniform grid over swept AABBs) and narrowphase (circle-circle,
+//   1. forces: gravity, springs $F = -k(\ell - \ell_0) - c\,\dot{\ell}$
+//   2. velocities: $v \mathrel{+}= a\,\Delta t$, $\omega \mathrel{+}= \alpha\,\Delta t$
+//   3. broadphase (uniform grid over swept AABBs) and narrowphase (circle-circle,
 //      circle-wall), creating touching and speculative contacts
-//   3. warm start, then sequential impulses: friction clamped to the cone
-//      $|j_t| \le \mu j_n$, normal impulse clamped to $j_n \ge 0$ (accumulated);
-//      then a restitution pass
-//   4. positions: $x \mathrel{+}= \alpha\,v\,\Delta t$ plus split-impulse position correction,
+//   4. warm start, then sequential impulses: friction clamped to the cone
+//      $|j_t| \le \mu j_n$, normal impulse clamped to $j_n \ge 0$ (accumulated),
+//      distance constraints; then a restitution pass
+//   5. positions: $x \mathrel{+}= \alpha\,v\,\Delta t$ plus split-impulse position correction,
 //      where $\alpha < 1$ only for a fast body whose final path hits something
 //      (conservative advancement, so nothing passes through anything)
 #include "physics/vec2.hpp"
@@ -40,6 +41,18 @@ struct Body {
 // A circle of the given radius and mass. mass <= 0 makes it static (infinite
 // mass and inertia: it never moves).
 Body makeBody(double radius, double mass, Vec2 pos, Vec2 vel = {}, double angVel = 0.0);
+
+struct Spring {           // Hooke spring with damping between two bodies
+    int a = 0, b = 0;
+    double restLength = 0.0;
+    double stiffness = 0.0;  // k (N/px with px units)
+    double damping = 0.0;    // c, acts on the rate of change of length
+};
+
+struct DistanceConstraint {  // rigid rod: $|p_b - p_a| = L$
+    int a = 0, b = 0;
+    double length = 0.0;
+};
 
 enum class Integrator {
     SemiImplicitEuler,  // $v_{n+1} = v_n + a_n\Delta t$, $x_{n+1} = x_n + v_{n+1}\Delta t$ (default)
@@ -120,6 +133,9 @@ public:
     explicit World(const WorldConfig& cfg = {});
 
     int addBody(const Body& b);
+    int addSpring(const Spring& s);
+    int addDistanceConstraint(int a, int b);  // length = current distance
+    int addDistanceConstraint(const DistanceConstraint& c);
     void clear();
 
     void step();
@@ -128,18 +144,29 @@ public:
     const WorldConfig& config() const { return cfg_; }
     std::vector<Body>& bodies() { return bodies_; }
     const std::vector<Body>& bodies() const { return bodies_; }
+    const std::vector<Spring>& springs() const { return springs_; }
+    const std::vector<DistanceConstraint>& distanceConstraints() const { return joints_; }
     const std::vector<Contact>& contacts() const { return contacts_; }
     const StepStats& lastStepStats() const { return stats_; }
 
     // $\sum \tfrac12 m v^2 + \tfrac12 I \omega^2$
     double kineticEnergy() const;
-    // gravity: $\sum -m\,g\cdot x$
+    // gravity $\sum -m\,g\cdot x$ plus springs $\sum \tfrac12 k (\ell - \ell_0)^2$
     double potentialEnergy() const;
     double totalEnergy() const { return kineticEnergy() + potentialEnergy(); }
     Vec2 linearMomentum() const;
     double angularMomentum() const;  // about the origin, including spin
 
 private:
+    struct JointState {
+        Vec2 u;              // unit axis a -> b
+        double error = 0.0;  // current length - target length
+        double mass = 0.0;
+        double impulse = 0.0;       // accumulated (warm started)
+        double pseudoImpulse = 0.0;
+    };
+
+    void applyForces();
     void integrateVelocities();
     void collide();
     void narrowphase(int i, int j);
@@ -159,6 +186,9 @@ private:
 
     WorldConfig cfg_;
     std::vector<Body> bodies_;
+    std::vector<Spring> springs_;
+    std::vector<DistanceConstraint> joints_;
+    std::vector<JointState> jointState_;
     std::vector<Contact> contacts_;
     std::vector<Vec2> pseudoVel_;     // split-impulse velocities (linear only)
     std::vector<Vec2> prevVel_;       // velocities before this step's forces (for restitution)
