@@ -57,8 +57,14 @@ add_executable(physics_tests
 target_include_directories(physics_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 target_link_libraries(physics_tests PRIVATE physics_core phys_warnings)
 
+# Separate binary: replaces the global operator new to count allocations.
+add_executable(alloc_tests tests/test_main.cpp tests/test_alloc.cpp)
+target_include_directories(alloc_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+target_link_libraries(alloc_tests PRIVATE physics_core phys_warnings)
+
 enable_testing()
 add_test(NAME physics_tests COMMAND physics_tests)
+add_test(NAME alloc_tests COMMAND alloc_tests)
 
 # ---------------------------------------------------------------------------
 # Benchmarks (never run in CI).
