@@ -44,7 +44,7 @@ TEST_CASE("bug: an inelastic pile never comes to rest (positional correction inj
     CHECK(rms < 0.25 * g * dt);
 }
 
-TEST_CASE("bug: the integrator gains energy on a spring (not semi-implicit Euler)" * doctest::should_fail()) {
+TEST_CASE("fixed: semi-implicit Euler keeps spring energy bounded over 1e5 steps") {
     // $\ddot{x} = -\omega^2 x$ with $\omega = 10$ rad/s, $\Delta t = 1/60$, $10^5$ steps.
     // A symplectic integrator keeps $E$ within $O(\omega\Delta t)$ of $E_0$.
     const double k = 100.0, m = 1.0, dt = 1.0 / 60.0;

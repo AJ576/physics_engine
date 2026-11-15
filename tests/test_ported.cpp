@@ -20,12 +20,15 @@ TEST_CASE("integration: constant velocity") {
     CHECK(body.getVelocity()[1] == Approx(-10.0));
 }
 
-TEST_CASE("integration: constant force matches exact kinematics, force cleared") {
+TEST_CASE("integration: constant force follows semi-implicit Euler, force cleared") {
+    // Changed when the integrator became semi-implicit Euler: one step gives
+    // $x_1 = x_0 + (v_0 + a\Delta t)\Delta t = a\Delta t^2$ (first order in position),
+    // not the exact $\tfrac12 a \Delta t^2$ of the old constant-acceleration update.
     RigidBody body(5.0, 4.0, {0.0, 0.0}, {0.0, 0.0});
     body.setForce({40.0, -20.0});  // a = (10, -5)
     body.numericalIntegration(0.5);
-    CHECK(body.getPosition()[0] == Approx(1.25));
-    CHECK(body.getPosition()[1] == Approx(-0.625));
+    CHECK(body.getPosition()[0] == Approx(2.5));
+    CHECK(body.getPosition()[1] == Approx(-1.25));
     CHECK(body.getVelocity()[0] == Approx(5.0));
     CHECK(body.getVelocity()[1] == Approx(-2.5));
     CHECK(body.getForce()[0] == 0.0);

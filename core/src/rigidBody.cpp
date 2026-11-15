@@ -68,12 +68,16 @@ void RigidBody::numericalIntegration(double dt) {
     // detection can see what surfaces we crossed.
     prevPosition_ = position_;
 
-    // Use old velocity for position update (constant-accel kinematics)
-    position_[0] += velocity_[0] * dt + 0.5 * acceleration_[0] * dt * dt;
-    position_[1] += velocity_[1] * dt + 0.5 * acceleration_[1] * dt * dt;
-
+    // Semi-implicit (symplectic) Euler: velocity first, then position with
+    // the new velocity. $v_{n+1} = v_n + a_n \Delta t$, $x_{n+1} = x_n + v_{n+1} \Delta t$.
+    // The previous scheme, $x_{n+1} = x_n + v_n\Delta t + \tfrac12 a_n \Delta t^2$ then
+    // $v_{n+1} = v_n + a_n\Delta t$, has a step matrix with determinant
+    // $1 + \tfrac12\omega^2\Delta t^2$ on $\ddot{x} = -\omega^2 x$ and gains energy on springs.
     velocity_[0] += acceleration_[0] * dt;
     velocity_[1] += acceleration_[1] * dt;
+
+    position_[0] += velocity_[0] * dt;
+    position_[1] += velocity_[1] * dt;
 
     updateColorFromSpeed();
 
