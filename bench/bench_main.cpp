@@ -11,7 +11,7 @@
 //
 // Usage: physics_bench [--scene gas|pile] [--n 500,1000,...] [--runs R]
 //                      [--warmup W] [--steps S] [--brute] [--brute-steps S]
-//                      [--search] [--csv FILE] [--seed X] [--cell PX]
+//                      [--search] [--csv FILE] [--seed X] [--cell PX] [--hash]
 #include "adapter.hpp"
 
 #include <algorithm>
@@ -45,6 +45,7 @@ struct Options {
     std::string csv;
     std::uint64_t seed = 42;
     double cell = 0.0;
+    bool hash = false;
 };
 
 struct RunStats {
@@ -171,10 +172,22 @@ int main(int argc, char** argv) {
         else if (a == "--csv") o.csv = next();
         else if (a == "--seed") o.seed = std::strtoull(next(), nullptr, 10);
         else if (a == "--cell") o.cell = std::atof(next());
+        else if (a == "--hash") o.hash = true;
         else { std::fprintf(stderr, "unknown option %s\n", a.c_str()); return 2; }
     }
     if (o.scene != "gas" && o.scene != "pile") { std::fprintf(stderr, "scene must be gas or pile\n"); return 2; }
 
+    if (o.hash) {
+        // State hash after warmup + steps for each N (no timing): compare two
+        // builds to show an optimization did not change the results.
+        for (std::size_t n : o.ns) {
+            bench::Sim sim(phys::makeConstantDensityScene(n, o.seed), configFor(o));
+            for (int i = 0; i < o.warmup + o.steps; ++i) sim.step();
+            std::printf("hash scene=%s n=%zu steps=%d %016llx\n", o.scene.c_str(), n, o.warmup + o.steps,
+                        static_cast<unsigned long long>(sim.stateHash()));
+        }
+        return 0;
+    }
     const auto cfg = configFor(o);
     std::printf("engine: %s\nbuild: %s\n", bench::Sim::engineName(), PHYS_BENCH_BUILD_INFO);
     std::printf("scene: %s (constant density 96 px^2/body, gravity %.0f px/s^2, e=%.2f, seed %llu)\n",
