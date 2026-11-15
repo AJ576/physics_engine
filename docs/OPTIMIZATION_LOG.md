@@ -81,3 +81,30 @@ better than 10 px. At 30 px the cost rises (+14% gas, +14% pile vs 10 px)
 because more AABB tests happen per cell. Unlike the old engine, a cell smaller
 than a body is still exact (test "grid contact set equals brute force for any
 cell size").
+
+## 3. Compact solver-body array (rejected, reverted)
+
+Idea (Box2D's solver bodies; a hot/cold split rather than full SoA): copy
+velocity, spin and inverse mass/inertia into a 40-byte record per body before
+the solve, plus a static dummy record for the walls so the inner loop has no
+wall branch, and write velocities back afterwards. Target: `solveVelocities()`,
+42% of the pile profile.
+
+| Scene | N | before p50 | after p50 | median ratio | ratio range | verdict |
+|---|---:|---:|---:|---:|---|---|
+| pile | 5,000 | 7.937 ms | 7.809 ms | 0.992 | 0.937-1.038 | within noise |
+| gas | 5,000 | 1.150 ms | 1.141 ms | 0.989 | 0.935-1.190 | within noise |
+| gas | 20,000 | 5.316 ms | 5.477 ms | 1.047 | 0.972-1.088 | within noise |
+
+Raw: [pile](bench/opt/03_solverbodies_pile.md), [gas](bench/opt/03_solverbodies_gas.md).
+Why it did not help: the bodies already fit in cache (5,000 x 120 B = 600 KB
+against 2 MB of L2 per core on this VM; 20,000 bodies = 2.4 MB is borderline),
+so the solver is bound by the dependent arithmetic of each impulse, not by
+loads. Reverted.
+
+**Full structure-of-arrays body storage: not attempted.** The per-body
+passes that SoA speeds up (integration, force accumulation) are about 1% of
+both profiles, and the contact solver reads bodies in contact order (random
+access), where one record per body touches one cache line and separate arrays
+would touch five. Item 3 suggests even the cheaper version of the layout
+change does not pay on this working-set size.
