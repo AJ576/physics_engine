@@ -47,7 +47,12 @@ target_link_libraries(physics_core PRIVATE phys_warnings)
 
 # ---------------------------------------------------------------------------
 # physics_tests: doctest 2.4.11 (vendored single header, third_party/doctest).
-add_executable(physics_tests tests/test_physics.cpp)
+add_executable(physics_tests
+    tests/test_main.cpp
+    tests/test_ported.cpp
+    tests/test_collision_and_conservation.cpp
+    tests/test_audit_bugs.cpp
+)
 target_include_directories(physics_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 target_link_libraries(physics_tests PRIVATE physics_core phys_warnings)
 
