@@ -78,7 +78,7 @@ TEST_CASE("fixed: a longer hitch never runs fewer physics steps than a shorter o
     CHECK(stepsFor(0.26) >= stepsFor(0.24));
 }
 
-TEST_CASE("bug: grid misses collisions when cell size < body diameter" * doctest::should_fail()) {
+TEST_CASE("fixed: grid finds all collisions even when the requested cell size < body diameter") {
     // K isolated overlapping pairs of r = 4 bodies with cell size 3.
     WorldPhysics w({100000.0, 100000.0});
     w.setGravity({0.0, 0.0});
@@ -93,7 +93,7 @@ TEST_CASE("bug: grid misses collisions when cell size < body diameter" * doctest
     CHECK(w.runPhysicsProfiled(t).collisionsResolved == static_cast<size_t>(K));
 }
 
-TEST_CASE("bug (UBSan only): huge coordinates overflow the float->int cell conversion") {
+TEST_CASE("fixed: huge coordinates do not overflow the float->int cell conversion (checked by UBSan)") {
     // floor(1e12 / 10) does not fit in int: undefined behavior at
     // physics.cpp cell computation. Passes in release, aborts under the asan
     // preset (float-cast-overflow) until the cell index is guarded.

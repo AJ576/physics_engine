@@ -13,6 +13,26 @@ static inline long long cellKey(int x, int y)
     return (long long)(((unsigned long long)(unsigned int)x << 32) | (unsigned int)y);
 }
 
+// Cell coordinate for a world coordinate. floor(x / size) is clamped before
+// the conversion to int: out-of-range values (huge, infinite or NaN
+// positions) made the old cast undefined behavior.
+static inline int cellCoord(double v, double cellSize)
+{
+    double c = std::floor(v / cellSize);
+    if (!(c >= -1.0e9)) c = -1.0e9;  // also catches NaN
+    if (c > 1.0e9) c = 1.0e9;
+    return static_cast<int>(c);
+}
+
+// The half-neighbourhood scan only sees pairs whose centres are less than
+// one cell apart, so the cell must be at least the largest body diameter.
+static double effectiveCellSize(const std::vector<RigidBody>& bodies, double requested)
+{
+    double maxDiameter = 0.0;
+    for (const auto& b : bodies) maxDiameter = std::max(maxDiameter, 2.0 * b.getRadius());
+    return std::max(requested, maxDiameter);
+}
+
 // TimeManager method implementations
 TimeManager::TimeManager(){
     last_time = Clock::now();
@@ -364,14 +384,15 @@ void WorldPhysics::runPhysics(const TimeManager& TIME)
     grid.clear();
 
     //rebuild the grid
+    const double cellSize = effectiveCellSize(bodies, grid_size);
     for (size_t i = 0; i<bodies.size(); i++)
     {
         //get poistion and thus the cell val
         double x = bodies[i].getPosition()[0];
         double y = bodies[i].getPosition()[1];
 
-        int cell_x = (int)std::floor(x / grid_size);
-        int cell_y = (int)std::floor(y / grid_size);
+        int cell_x = cellCoord(x, cellSize);
+        int cell_y = cellCoord(y, cellSize);
 
         long long key = cellKey(cell_x, cell_y);
 
@@ -496,12 +517,13 @@ StepProfile WorldPhysics::runPhysicsProfiled(const TimeManager& TIME)
     // 3. Grid Build
     t0 = Clock::now();
     grid.clear();
+    const double cellSize = effectiveCellSize(bodies, grid_size);
     for (size_t i = 0; i < bodies.size(); i++) {
         double x = bodies[i].getPosition()[0];
         double y = bodies[i].getPosition()[1];
 
-        int cell_x = (int)std::floor(x / grid_size);
-        int cell_y = (int)std::floor(y / grid_size);
+        int cell_x = cellCoord(x, cellSize);
+        int cell_y = cellCoord(y, cellSize);
 
         long long key = cellKey(cell_x, cell_y);
         grid[key].push_back(&bodies[i]);
