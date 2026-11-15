@@ -11,7 +11,7 @@
 //
 // Usage: physics_bench [--scene gas|pile] [--n 500,1000,...] [--runs R]
 //                      [--warmup W] [--steps S] [--brute] [--brute-steps S]
-//                      [--search] [--csv FILE] [--seed X] [--cell PX] [--hash]
+//                      [--search] [--csv FILE] [--seed X] [--cell PX] [--hash] [--threads T]
 #include "adapter.hpp"
 
 #include <algorithm>
@@ -46,6 +46,7 @@ struct Options {
     std::uint64_t seed = 42;
     double cell = 0.0;
     bool hash = false;
+    int threads = 1;
 };
 
 struct RunStats {
@@ -101,6 +102,7 @@ bench::SimConfig configFor(const Options& o) {
     if (o.scene == "pile") { c.gravityY = -980.0; c.restitution = 0.7; }
     else { c.gravityY = 0.0; c.restitution = 1.0; }  // "gas": steady workload
     c.cellSize = o.cell;
+    c.threads = o.threads;
     return c;
 }
 
@@ -173,6 +175,7 @@ int main(int argc, char** argv) {
         else if (a == "--seed") o.seed = std::strtoull(next(), nullptr, 10);
         else if (a == "--cell") o.cell = std::atof(next());
         else if (a == "--hash") o.hash = true;
+        else if (a == "--threads") o.threads = std::atoi(next());
         else { std::fprintf(stderr, "unknown option %s\n", a.c_str()); return 2; }
     }
     if (o.scene != "gas" && o.scene != "pile") { std::fprintf(stderr, "scene must be gas or pile\n"); return 2; }
@@ -192,8 +195,8 @@ int main(int argc, char** argv) {
     std::printf("engine: %s\nbuild: %s\n", bench::Sim::engineName(), PHYS_BENCH_BUILD_INFO);
     std::printf("scene: %s (constant density 96 px^2/body, gravity %.0f px/s^2, e=%.2f, seed %llu)\n",
                 o.scene.c_str(), cfg.gravityY, cfg.restitution, static_cast<unsigned long long>(o.seed));
-    std::printf("runs=%d warmup=%d steps/run=%d dt=1/60 s; times in ms, median over runs; sd = stddev of run means\n\n",
-                o.runs, o.warmup, o.steps);
+    std::printf("runs=%d warmup=%d steps/run=%d dt=1/60 s threads=%d; times in ms, median over runs; sd = stddev of run means\n\n",
+                o.runs, o.warmup, o.steps, o.threads);
 
     std::FILE* csv = o.csv.empty() ? nullptr : std::fopen(o.csv.c_str(), "w");
     if (csv) std::fprintf(csv, "scene,n,mean_ms,p50_ms,p99_ms,max_ms,mean_sd_ms,mean_min_ms,mean_max_ms,cand_pairs,contacts,brute_pairs,brute_mean_ms,brute_sd_ms\n");

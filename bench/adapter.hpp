@@ -16,6 +16,7 @@ struct SimConfig {
     double gravityY = 0.0;  // px/s^2 (negative = down)
     double restitution = 1.0;
     double cellSize = 0.0;  // 0 = engine default
+    int threads = 1;
 };
 
 struct StepCounts {
@@ -32,6 +33,7 @@ public:
         c.gravity = {0.0, cfg.gravityY};
         c.restitution = cfg.restitution;
         if (cfg.cellSize > 0.0) c.cellSize = cfg.cellSize;
+        c.threads = cfg.threads;
         world_ = phys::World(c);
         for (const auto& b : scene.bodies) world_.addBody(phys::makeBody(b.radius, b.mass, {b.x, b.y}, {b.vx, b.vy}));
     }

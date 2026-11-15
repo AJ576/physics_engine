@@ -165,3 +165,53 @@ Kept for the allocation property (no allocator calls inside a step, so no
 allocator-dependent latency), not for speed: the speed change is within
 noise. Raw: [5a pile](bench/opt/05a_sorted_pile.md), [5a gas](bench/opt/05a_sorted_gas.md),
 [5b pile](bench/opt/05b_flat_pile.md), [5b gas](bench/opt/05b_flat_gas.md).
+
+## 6. Thread pool for the broadphase (kept, opt-in: `WorldConfig::threads`)
+
+Profile basis: the grid pair loop (`collide()`, 22%) and the per-body AABB
+pass in `buildGrid()` (part of its 21%) are independent per row / per body.
+The solver is not parallelized: it is about 10% of the gas profile, and
+parallel sequential impulses need graph colouring or islands and give
+thread-count-dependent results.
+
+A persistent pool (`core/src/thread_pool.cpp`) runs a parallel-for. Grid rows
+are split into contiguous chunks; each chunk writes its own contact buffer and
+the buffers are appended in chunk order, so the contact list is the same as
+single-threaded. The AABB bounds are reduced per chunk. Results are
+bit-identical for any thread count (test "identical state hash for 1, 2 and 4
+broadphase threads"; `--hash` at gas N = 20,000 equals the previous commit's).
+ThreadSanitizer: no reports on the threaded test.
+
+Thread scaling, gas, all 4 vCPUs (`taskset -c 0-3`), same binary,
+`--threads 1` vs `--threads T`, 7 paired rounds:
+
+| N | 1 thread p50 | 2 threads p50 (ratio, range, verdict) | 4 threads p50 (ratio, range, verdict) |
+|---:|---:|---|---|
+| 5,000 | 1.208 / 1.215 ms | 1.246 ms (1.031, 0.787-1.287, within noise) | 1.236 ms (1.009, 0.930-1.211, within noise) |
+| 20,000 | 5.680 / 5.792 ms | 5.176 ms (0.895, 0.833-1.083, within noise) | 5.092 ms (0.885, 0.833-0.952, **faster**) |
+| 50,000 | 16.126 / 15.928 ms | 14.743 ms (0.930, 0.897-1.038, within noise) | 14.756 ms (0.936, 0.870-0.971, **faster**) |
+
+(The 1-thread column has two values because each comparison had its own A runs.)
+At 4 threads the step gets 6-12% faster at N >= 20,000, close to the
+Amdahl bound for a parallel fraction of roughly 0.3 on this profile; at
+N = 5,000 the pool's wake-up cost cancels the gain. The single-thread path did
+not regress (vs previous commit: 0.890-1.258 at 5k, 0.963-1.122 at 20k, within
+noise). Kept as an option; the default stays 1 thread.
+Raw: [2 threads](bench/opt/06_threads_2.md), [4 threads](bench/opt/06_threads_4.md),
+[1 thread vs previous](bench/opt/06_threads_1_vs_prev.md).
+
+## Not attempted, and why
+
+* **Avoid `sqrt` until needed**: already the case since the rewrite. The
+  narrowphase compares squared distances and takes one `sqrt` only for pairs
+  that become contacts (or a swept test that has a root); the margin and CCD
+  fast-body checks use squared lengths.
+* **Avoid duplicate pair tests**: already the case. A pair is narrowphase-tested
+  exactly once (the min-corner rule); the test "grid contact set equals brute
+  force" also checks for duplicates.
+* **Sleeping bodies**: not attempted (time). The gas benchmark has no resting
+  bodies, so it would not change the headline numbers; the pile scene would
+  benefit. It also needs wake-up rules for contacts, springs and joints.
+* **SIMD intrinsics**: the profile shows no tight arithmetic loop that
+  dominates (the top items are the grid's indexing, the contact solver's
+  dependent updates and branches), so explicit SIMD was not tried.

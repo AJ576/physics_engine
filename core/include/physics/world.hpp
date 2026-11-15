@@ -21,9 +21,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 namespace phys {
+
+class ThreadPool;
 
 struct Body {
     Vec2 pos, vel;
@@ -102,6 +105,9 @@ struct WorldConfig {
     Integrator integrator = Integrator::SemiImplicitEuler;
     Broadphase broadphase = Broadphase::Grid;
     double cellSize = 10.0;   // px; any value is correct (bodies span cells), speed varies
+    // Threads for the broadphase (AABB pass and grid pair loop). Results are
+    // bit-identical for any value; the solver always runs on one thread.
+    int threads = 1;
 };
 
 struct Contact {
@@ -140,6 +146,9 @@ struct StepStats {
 class World {
 public:
     explicit World(const WorldConfig& cfg = {});
+    ~World();
+    World(World&&) noexcept;
+    World& operator=(World&&) noexcept;
 
     int addBody(const Body& b);
     int addSpring(const Spring& s);
@@ -179,7 +188,8 @@ private:
     void applyForces();
     void integrateVelocities();
     void collide();
-    void narrowphase(int i, int j);
+    void narrowphase(int i, int j, std::vector<Contact>& out, StepStats& st) const;
+    ThreadPool* threadPool();
     void filterSweptContacts();
     void wallContacts(int i);
     void prepareContacts();
@@ -224,6 +234,10 @@ private:
     std::vector<Aabb> boxes_;
     std::vector<CellRange> ranges_;
     std::vector<int> oversized_;
+    std::unique_ptr<ThreadPool> pool_;
+    std::vector<std::vector<Contact>> chunkContacts_;
+    std::vector<StepStats> chunkStats_;
+    std::vector<Aabb> chunkBounds_;
     double h_ = 1.0 / 60.0;  // current substep length
     double cellSizeUsed_ = 10.0;
     double maxRadius_ = 0.0;

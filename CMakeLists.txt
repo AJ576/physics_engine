@@ -40,9 +40,11 @@ add_library(physics_core STATIC
     core/src/scene.cpp
     core/src/world.cpp
     core/src/scenes.cpp
+    core/src/thread_pool.cpp
 )
 target_include_directories(physics_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core/include)
-target_link_libraries(physics_core PRIVATE phys_warnings)
+find_package(Threads REQUIRED)
+target_link_libraries(physics_core PUBLIC Threads::Threads PRIVATE phys_warnings)
 
 # ---------------------------------------------------------------------------
 # physics_tests: doctest 2.4.11 (vendored single header, third_party/doctest).

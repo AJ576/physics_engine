@@ -1,5 +1,7 @@
 #include "physics/world.hpp"
 
+#include "physics/thread_pool.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -40,6 +42,9 @@ Body makeBody(double radius, double mass, Vec2 pos, Vec2 vel, double angVel) {
 }
 
 World::World(const WorldConfig& cfg) : cfg_(cfg) {}
+World::~World() = default;
+World::World(World&&) noexcept = default;
+World& World::operator=(World&&) noexcept = default;
 
 int World::addBody(const Body& b) {
     bodies_.push_back(b);
@@ -74,6 +79,12 @@ void World::clear() {
     impulseCache_ = {};
     impulseNext_ = {};
     items_.clear();
+}
+
+ThreadPool* World::threadPool() {
+    if (cfg_.threads <= 1) return nullptr;
+    if (!pool_ || pool_->size() != cfg_.threads) pool_ = std::make_unique<ThreadPool>(cfg_.threads);
+    return pool_.get();
 }
 
 double World::restitutionThreshold() const {
@@ -173,20 +184,47 @@ void World::buildGrid(double cellSize, double dt, double pad) {
     boxes_.resize(n);
     ranges_.resize(n);
     oversized_.clear();
-    double minX = 1e300, minY = 1e300, maxX = -1e300, maxY = -1e300;
-    for (std::size_t i = 0; i < n; ++i) {
-        const Body& b = bodies_[i];
-        const Vec2 p1 = b.pos + b.vel * dt;
-        const double r = b.radius + pad;
-        Aabb box{std::min(b.pos.x, p1.x) - r, std::min(b.pos.y, p1.y) - r, std::max(b.pos.x, p1.x) + r,
-                 std::max(b.pos.y, p1.y) + r};
-        boxes_[i] = box;
-        if (std::isfinite(box.minX) && std::isfinite(box.maxX) && std::isfinite(box.minY) && std::isfinite(box.maxY)) {
-            minX = std::min(minX, box.minX);
-            minY = std::min(minY, box.minY);
-            maxX = std::max(maxX, box.maxX);
-            maxY = std::max(maxY, box.maxY);
+    // AABBs and their bounds (in parallel chunks when threads > 1).
+    auto boxesFor = [&](std::size_t begin, std::size_t end, Aabb& bounds) {
+        bounds = {1e300, 1e300, -1e300, -1e300};
+        for (std::size_t i = begin; i < end; ++i) {
+            const Body& b = bodies_[i];
+            const Vec2 p1 = b.pos + b.vel * dt;
+            const double r = b.radius + pad;
+            Aabb box{std::min(b.pos.x, p1.x) - r, std::min(b.pos.y, p1.y) - r, std::max(b.pos.x, p1.x) + r,
+                     std::max(b.pos.y, p1.y) + r};
+            boxes_[i] = box;
+            if (std::isfinite(box.minX) && std::isfinite(box.maxX) && std::isfinite(box.minY) &&
+                std::isfinite(box.maxY)) {
+                bounds.minX = std::min(bounds.minX, box.minX);
+                bounds.minY = std::min(bounds.minY, box.minY);
+                bounds.maxX = std::max(bounds.maxX, box.maxX);
+                bounds.maxY = std::max(bounds.maxY, box.maxY);
+            }
         }
+    };
+    double minX = 1e300, minY = 1e300, maxX = -1e300, maxY = -1e300;
+    if (ThreadPool* pool = threadPool()) {
+        const int chunks = pool->size();
+        chunkBounds_.resize(static_cast<std::size_t>(chunks));
+        pool->run(chunks, [&](int k) {
+            boxesFor(n * static_cast<std::size_t>(k) / static_cast<std::size_t>(chunks),
+                     n * static_cast<std::size_t>(k + 1) / static_cast<std::size_t>(chunks),
+                     chunkBounds_[static_cast<std::size_t>(k)]);
+        });
+        for (const Aabb& b : chunkBounds_) {
+            minX = std::min(minX, b.minX);
+            minY = std::min(minY, b.minY);
+            maxX = std::max(maxX, b.maxX);
+            maxY = std::max(maxY, b.maxY);
+        }
+    } else {
+        Aabb b;
+        boxesFor(0, n, b);
+        minX = b.minX;
+        minY = b.minY;
+        maxX = b.maxX;
+        maxY = b.maxY;
     }
     if (minX > maxX) minX = maxX = minY = maxY = 0.0;
     minX = std::max(minX, -1e9);
@@ -246,7 +284,7 @@ void World::collide() {
         for (int i = 0; i < n; ++i)
             for (int j = i + 1; j < n; ++j) {
                 ++stats_.candidatePairs;
-                narrowphase(i, j);
+                narrowphase(i, j, contacts_, stats_);
             }
         filterSweptContacts();
         return;
@@ -268,23 +306,50 @@ void World::collide() {
         return a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY;
     };
 
-    for (int cy = 0; cy < grid_.ny; ++cy) {
-        for (int cx = 0; cx < grid_.nx; ++cx) {
-            const int c = cy * grid_.nx + cx;
-            const int begin = cellStart_[static_cast<std::size_t>(c)], end = cellStart_[static_cast<std::size_t>(c) + 1];
-            for (int p = begin; p < end; ++p) {
-                const int i = items_[static_cast<std::size_t>(p)];
-                for (int q = p + 1; q < end; ++q) {
-                    const int j = items_[static_cast<std::size_t>(q)];  // i < j: filled in index order
-                    if (!overlap(i, j)) continue;
-                    const Aabb& a = boxes[static_cast<std::size_t>(i)];
-                    const Aabb& b = boxes[static_cast<std::size_t>(j)];
-                    if (grid_.cellX(std::max(a.minX, b.minX)) != cx || grid_.cellY(std::max(a.minY, b.minY)) != cy)
-                        continue;
-                    ++stats_.candidatePairs;
-                    narrowphase(i, j);
+    // Pair loop over grid rows. With threads > 1 the rows are split into
+    // contiguous chunks; each chunk writes its own contact buffer and the
+    // buffers are appended in chunk order, so the contact list (and the
+    // simulation) is identical for any thread count.
+    auto rows = [&](int y0, int y1, std::vector<Contact>& out, StepStats& st) {
+        for (int cy = y0; cy < y1; ++cy) {
+            for (int cx = 0; cx < grid_.nx; ++cx) {
+                const int c = cy * grid_.nx + cx;
+                const int begin = cellStart_[static_cast<std::size_t>(c)], end = cellStart_[static_cast<std::size_t>(c) + 1];
+                for (int p = begin; p < end; ++p) {
+                    const int i = items_[static_cast<std::size_t>(p)];
+                    for (int q = p + 1; q < end; ++q) {
+                        const int j = items_[static_cast<std::size_t>(q)];  // i < j: filled in index order
+                        if (!overlap(i, j)) continue;
+                        const Aabb& a = boxes[static_cast<std::size_t>(i)];
+                        const Aabb& b = boxes[static_cast<std::size_t>(j)];
+                        if (grid_.cellX(std::max(a.minX, b.minX)) != cx || grid_.cellY(std::max(a.minY, b.minY)) != cy)
+                            continue;
+                        ++st.candidatePairs;
+                        narrowphase(i, j, out, st);
+                    }
                 }
             }
+        }
+    };
+    ThreadPool* pool = threadPool();
+    if (!pool) {
+        rows(0, grid_.ny, contacts_, stats_);
+    } else {
+        const int chunks = std::min(grid_.ny, 4 * pool->size());
+        chunkContacts_.resize(static_cast<std::size_t>(chunks));
+        chunkStats_.assign(static_cast<std::size_t>(chunks), StepStats{});
+        pool->run(chunks, [&](int k) {
+            auto& out = chunkContacts_[static_cast<std::size_t>(k)];
+            out.clear();
+            rows(grid_.ny * k / chunks, grid_.ny * (k + 1) / chunks, out, chunkStats_[static_cast<std::size_t>(k)]);
+        });
+        for (int k = 0; k < chunks; ++k) {
+            const auto& out = chunkContacts_[static_cast<std::size_t>(k)];
+            contacts_.insert(contacts_.end(), out.begin(), out.end());
+            const StepStats& st = chunkStats_[static_cast<std::size_t>(k)];
+            stats_.candidatePairs += st.candidatePairs;
+            stats_.contacts += st.contacts;
+            stats_.speculative += st.speculative;
         }
     }
 
@@ -296,7 +361,7 @@ void World::collide() {
             if (std::find(oversized_.begin(), oversized_.end(), j) != oversized_.end() && j < i) continue;
             if (!overlap(i, j)) continue;
             ++stats_.candidatePairs;
-            narrowphase(std::min(i, j), std::max(i, j));
+            narrowphase(std::min(i, j), std::max(i, j), contacts_, stats_);
         }
     }
 
@@ -376,7 +441,7 @@ bool collideCircles(const Body& A, const Body& B, double dt, bool continuous, Ve
     return true;
 }
 
-void World::narrowphase(int i, int j) {
+void World::narrowphase(int i, int j, std::vector<Contact>& out, StepStats& st) const {
     const Body& A = bodies_[static_cast<std::size_t>(i)];
     const Body& B = bodies_[static_cast<std::size_t>(j)];
     if (A.isStatic() && B.isStatic()) return;
@@ -386,11 +451,11 @@ void World::narrowphase(int i, int j) {
     if (!collideCircles(A, B, h_, cfg_.continuous, c.normal, c.separation, cfg_.speculativeDistance, &c.toi))
         return;
     if (c.separation > 0.0 || (B.pos - A.pos).lengthSq() >= (A.radius + B.radius) * (A.radius + B.radius))
-        ++stats_.speculative;
+        ++st.speculative;
     c.ra = c.normal * A.radius;
     c.rb = c.normal * (-B.radius);
-    contacts_.push_back(c);
-    ++stats_.contacts;
+    out.push_back(c);
+    ++st.contacts;
 }
 
 void World::wallContacts(int i) {

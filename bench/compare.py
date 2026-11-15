@@ -9,7 +9,7 @@ and a verdict: "faster" only if every paired ratio is below 1, "slower" only
 if every ratio is above 1, otherwise "within noise".
 
 Usage: bench/compare.py A_BIN B_BIN [--scene gas|pile] [--n 5000,20000]
-                        [--reps 9] [--steps 300] [--cpu 3]
+                        [--reps 9] [--steps 300] [--cpu 3] [--a-extra ARGS] [--b-extra ARGS]
 """
 import argparse
 import statistics
@@ -17,8 +17,8 @@ import subprocess
 import sys
 
 
-def run(binary, scene, n, steps, cpu):
-    cmd = [binary, "--scene", scene, "--n", str(n), "--runs", "1", "--steps", str(steps)]
+def run(binary, scene, n, steps, cpu, extra=""):
+    cmd = [binary, "--scene", scene, "--n", str(n), "--runs", "1", "--steps", str(steps)] + extra.split()
     if cpu is not None:
         cmd = ["taskset", "-c", str(cpu)] + cmd
     out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
@@ -37,20 +37,24 @@ def main():
     ap.add_argument("--n", default="5000,20000")
     ap.add_argument("--reps", type=int, default=9)
     ap.add_argument("--steps", type=int, default=300)
-    ap.add_argument("--cpu", type=int, default=3)
+    ap.add_argument("--cpu", default="3", help="taskset CPU list, e.g. 3 or 0-3")
+    ap.add_argument("--a-extra", default="", help="extra physics_bench arguments for A, e.g. '--threads 1'")
+    ap.add_argument("--b-extra", default="", help="extra physics_bench arguments for B")
     args = ap.parse_args()
 
-    print("A = %s\nB = %s\nscene=%s reps=%d steps=%d, pinned to cpu %s, order alternates AB/BA"
-          % (args.a, args.b, args.scene, args.reps, args.steps, args.cpu))
+    print("A = %s %s\nB = %s %s\nscene=%s reps=%d steps=%d, pinned to cpu %s, order alternates AB/BA"
+          % (args.a, args.a_extra, args.b, args.b_extra, args.scene, args.reps, args.steps, args.cpu))
     print("| N | A p50 median (ms) | B p50 median (ms) | median B/A | B/A range | A p50 range | B p50 range | verdict |")
     print("|---:|---:|---:|---:|---:|---:|---:|---|")
     for n in [int(x) for x in args.n.split(",")]:
         pa, pb, ratios = [], [], []
         for r in range(args.reps):
-            order = [("a", args.a), ("b", args.b)] if r % 2 == 0 else [("b", args.b), ("a", args.a)]
+            order = [("a", args.a, args.a_extra), ("b", args.b, args.b_extra)]
+            if r % 2:
+                order.reverse()
             res = {}
-            for tag, binary in order:
-                res[tag] = run(binary, args.scene, n, args.steps, args.cpu)[1]
+            for tag, binary, extra in order:
+                res[tag] = run(binary, args.scene, n, args.steps, args.cpu, extra)[1]
             pa.append(res["a"])
             pb.append(res["b"])
             ratios.append(res["b"] / res["a"])

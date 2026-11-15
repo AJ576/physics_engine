@@ -326,3 +326,20 @@ TEST_CASE("conservation: momentum through many elastic collisions (gravity off, 
     MESSAGE("contacts=" << contacts << "  |dp| / sum|p| = " << rel);
     CHECK(rel < 1e-12);
 }
+
+TEST_CASE("determinism: identical state hash for 1, 2 and 4 broadphase threads") {
+    auto run = [](int threads) {
+        auto scene = phys::makeConstantDensityScene(4000, 9);
+        WorldConfig c;
+        c.width = scene.width;
+        c.height = scene.height;
+        c.threads = threads;
+        World w(c);
+        testing::load(w, scene);
+        for (int s = 0; s < 200; ++s) w.step();
+        return testing::stateHash(w);
+    };
+    const auto h1 = run(1);
+    CHECK(run(2) == h1);
+    CHECK(run(4) == h1);
+}
