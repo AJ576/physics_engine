@@ -81,8 +81,12 @@ struct WorldConfig {
     double restitutionThreshold = -1.0;
 
     int velocityIterations = 8;
-    // Passes of the restitution step (one pass, as in Box2D).
-    int restitutionIterations = 1;
+    // Passes of the restitution step. The velocity solve treats contacts as
+    // inelastic first; with several contacts on one body a single restitution
+    // pass (as in Box2D) does not restore the bounce. Measured at e = 1, no
+    // friction, 2,000 bodies at demo density, 10 s: KE -9.5% with 1 pass,
+    // -0.28% with 8 (docs/BENCHMARKS.md, conservation).
+    int restitutionIterations = 8;
     int positionIterations = 4;  // split-impulse iterations
     PositionCorrection positionCorrection = PositionCorrection::SplitImpulse;
     double baumgarte = 0.2;   // fraction of penetration removed per step

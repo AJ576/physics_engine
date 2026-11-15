@@ -54,9 +54,26 @@ TEST_CASE("conservation: linear momentum to rounding (e = 1, no gravity, no wall
     }
 }
 
-TEST_CASE("conservation: kinetic energy within 1% over 10 s at e = 1 (demo density, no walls, no friction)" *
-          doctest::should_fail()) {
+TEST_CASE("conservation: kinetic energy within 1% over 10 s at e = 1 (demo density, no walls, no friction)") {
     const Drift d = elasticRun(96.0, false, 0.0);
     MESSAGE("contacts=" << d.contacts << " KE_N/KE_0 - 1 = " << d.ke << " (min " << d.keMin << ")");
     CHECK(std::abs(d.ke) < 0.01);
+}
+
+TEST_CASE("conservation (measured, limitation): energy at e = 1 with walls, dense packing, friction; angular momentum") {
+    // Regression guards around measured values; the numbers are reported in
+    // docs/BENCHMARKS.md. Friction converts translation into spin and then
+    // dissipates; dense packing means many simultaneous contacts; angular
+    // momentum changes because position-only corrections (split impulse,
+    // CCD motion clamp) move bodies without a matching velocity change.
+    const Drift walls = elasticRun(96.0, true, 0.0);
+    const Drift dense = elasticRun(30.0, false, 0.0);
+    const Drift friction = elasticRun(96.0, true, 0.3);
+    MESSAGE("walls, mu=0:   KE " << walls.ke << "  contacts " << walls.contacts);
+    MESSAGE("dense, mu=0:   KE " << dense.ke << "  dL/|L0| " << dense.angular << "  contacts " << dense.contacts);
+    MESSAGE("walls, mu=0.3: KE " << friction.ke << "  contacts " << friction.contacts);
+    CHECK(std::abs(walls.ke) < 0.05);
+    CHECK(std::abs(dense.ke) < 0.15);
+    CHECK(std::abs(dense.angular) < 0.05);
+    CHECK(friction.ke < 0.0);  // friction only removes energy
 }
