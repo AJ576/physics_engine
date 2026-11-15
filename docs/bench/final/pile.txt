@@ -1,0 +1,12 @@
+engine: phys::World (sequential impulses, 8 iterations, swept-AABB hash grid)
+build: GNU 13.3.0, Release:  -O3 -DNDEBUG
+scene: pile (constant density 96 px^2/body, gravity -980 px/s^2, e=0.70, seed 42)
+runs=7 warmup=120 steps/run=300 dt=1/60 s threads=1; times in ms, median over runs; sd = stddev of run means
+
+      N      mean       p50       p99       max       sd sd/mean    cand.pairs    contacts    brute pairs
+    500     0.493     0.483     0.642     0.813   0.0657  13.33%          1414        1240         124750
+   1000     1.265     1.155     2.162     2.724   0.2316  18.31%          3036        2630         499500
+   2000     2.542     2.373     3.407     3.650   0.1867   7.34%          6613        5599        1999000
+   5000     7.961     7.570    10.715    11.931   0.5392   6.77%         19215       15512       12497500
+  10000    21.797    20.508    30.065    34.011   1.2542   5.75%         47606       36703       49995000
+  20000    63.329    58.636   101.493   112.632   2.4042   3.80%        130427       95837      199990000
