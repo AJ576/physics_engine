@@ -61,6 +61,13 @@ add_test(NAME physics_tests COMMAND physics_tests)
 
 # ---------------------------------------------------------------------------
 # Benchmarks (never run in CI).
+string(TOUPPER "${CMAKE_BUILD_TYPE}" _bt)
+set(PHYS_BUILD_INFO "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}, ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${_bt}}")
+string(STRIP "${PHYS_BUILD_INFO}" PHYS_BUILD_INFO)
+add_executable(physics_bench bench/bench_main.cpp)
+target_link_libraries(physics_bench PRIVATE physics_core phys_warnings)
+target_compile_definitions(physics_bench PRIVATE PHYS_BENCH_BUILD_INFO="${PHYS_BUILD_INFO}")
+
 add_executable(legacy_benchmark_suite bench/legacy_benchmark_suite.cpp)
 target_link_libraries(legacy_benchmark_suite PRIVATE physics_core phys_warnings)
 

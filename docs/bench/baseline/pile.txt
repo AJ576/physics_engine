@@ -1,0 +1,12 @@
+engine: legacy (single-pass projection + impulse, hash grid)
+build: GNU 13.3.0, Release:  -O3 -DNDEBUG
+scene: pile (constant density 96 px^2/body, gravity -980 px/s^2, e=0.70, seed 42)
+runs=7 warmup=120 steps/run=300 dt=1/60 s; times in ms, median over runs; sd = stddev of run means
+
+      N      mean       p50       p99       max       sd sd/mean    cand.pairs    contacts    brute pairs
+    500     0.152     0.148     0.183     0.231   0.0103   6.76%         14229        1634         124750
+   1000     0.375     0.350     0.544     0.601   0.0314   8.37%         40747        4139         499500
+   2000     0.860     0.839     0.965     1.090   0.0126   1.47%        111369       10448        1999000
+   5000     2.657     2.589     3.012     3.719   0.2732  10.28%        417808       35020       12497500
+  10000     6.651     6.469     9.521     9.981   0.2272   3.42%       1130012       85909       49995000
+  20000    16.034    15.480    23.237    24.865   0.4223   2.63%       3035060      208838      199990000
