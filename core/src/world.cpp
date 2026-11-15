@@ -122,7 +122,7 @@ void World::substep() {
     prepareContacts();
     if (cfg_.warmStarting) warmStart();
     solveVelocities();
-    applyRestitution();
+    for (int it = 0; it < cfg_.restitutionIterations; ++it) applyRestitution();
     storeImpulses();
     solvePositions();
     clampFastMotion();

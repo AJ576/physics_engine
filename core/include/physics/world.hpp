@@ -81,6 +81,8 @@ struct WorldConfig {
     double restitutionThreshold = -1.0;
 
     int velocityIterations = 8;
+    // Passes of the restitution step (one pass, as in Box2D).
+    int restitutionIterations = 1;
     int positionIterations = 4;  // split-impulse iterations
     PositionCorrection positionCorrection = PositionCorrection::SplitImpulse;
     double baumgarte = 0.2;   // fraction of penetration removed per step

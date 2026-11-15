@@ -52,6 +52,7 @@ add_executable(physics_tests
     tests/test_audit_bugs.cpp
     tests/test_springs.cpp
     tests/test_scenes.cpp
+    tests/test_conservation.cpp
 )
 target_include_directories(physics_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 target_link_libraries(physics_tests PRIVATE physics_core phys_warnings)
