@@ -37,10 +37,8 @@ endif()
 # ---------------------------------------------------------------------------
 # physics_core: the simulation. No SDL, no I/O.
 add_library(physics_core STATIC
-    core/src/physics.cpp
-    core/src/rigidBody.cpp
-    core/src/spring.cpp
     core/src/scene.cpp
+    core/src/world.cpp
 )
 target_include_directories(physics_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core/include)
 target_link_libraries(physics_core PRIVATE phys_warnings)
@@ -49,8 +47,7 @@ target_link_libraries(physics_core PRIVATE phys_warnings)
 # physics_tests: doctest 2.4.11 (vendored single header, third_party/doctest).
 add_executable(physics_tests
     tests/test_main.cpp
-    tests/test_ported.cpp
-    tests/test_collision_and_conservation.cpp
+    tests/test_world.cpp
     tests/test_audit_bugs.cpp
 )
 target_include_directories(physics_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
@@ -68,8 +65,6 @@ add_executable(physics_bench bench/bench_main.cpp)
 target_link_libraries(physics_bench PRIVATE physics_core phys_warnings)
 target_compile_definitions(physics_bench PRIVATE PHYS_BENCH_BUILD_INFO="${PHYS_BUILD_INFO}")
 
-add_executable(legacy_benchmark_suite bench/legacy_benchmark_suite.cpp)
-target_link_libraries(legacy_benchmark_suite PRIVATE physics_core phys_warnings)
 
 # ---------------------------------------------------------------------------
 # physics_demo: optional SDL2 front end.

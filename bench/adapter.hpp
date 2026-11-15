@@ -3,43 +3,48 @@
 // engine API changes, only this adapter changes; the timing and statistics
 // code in bench_main.cpp stays the same, so before/after numbers are
 // produced by identical measurement code.
-#include "physics/physics.hpp"
 #include "physics/scene.hpp"
+#include "physics/world.hpp"
 
 #include <cstddef>
-#include <memory>
 
 namespace bench {
 
 struct SimConfig {
-    double gravityY = 0.0;     // px/s^2 (negative = down)
+    double gravityY = 0.0;  // px/s^2 (negative = down)
     double restitution = 1.0;
 };
 
 struct StepCounts {
     std::size_t candidatePairs = 0;  // pairs that reached the narrowphase test
-    std::size_t contacts = 0;        // pairs found overlapping
+    std::size_t contacts = 0;        // body-body contacts created
 };
 
 class Sim {
 public:
-    Sim(const phys::SceneSpec& scene, const SimConfig& cfg) : world_({scene.width, scene.height}) {
-        setRestitution(cfg.restitution);
-        world_.setGravity({0.0, cfg.gravityY});
-        for (const auto& b : scene.bodies)
-            world_.addBody(RigidBody(b.radius, b.mass, {b.x, b.y}, {b.vx, b.vy}));
+    Sim(const phys::SceneSpec& scene, const SimConfig& cfg) {
+        phys::WorldConfig c;
+        c.width = scene.width;
+        c.height = scene.height;
+        c.gravity = {0.0, cfg.gravityY};
+        c.restitution = cfg.restitution;
+        world_ = phys::World(c);
+        for (const auto& b : scene.bodies) world_.addBody(phys::makeBody(b.radius, b.mass, {b.x, b.y}, {b.vx, b.vy}));
     }
-    void step() { world_.runPhysics(time_); }               // grid broadphase (default)
-    void stepBruteForce() { world_.runPhysicsNaive(time_); }  // O(N^2) all pairs
+    void step() { world_.step(); }
+    void stepBruteForce() {
+        world_.config().broadphase = phys::Broadphase::BruteForce;
+        world_.step();
+        world_.config().broadphase = phys::Broadphase::Grid;
+    }
     StepCounts stepCounted() {
-        StepProfile p = world_.runPhysicsProfiled(time_);
-        return {p.collisionPairsChecked, p.collisionsResolved};
+        world_.step();
+        return {world_.lastStepStats().candidatePairs, world_.lastStepStats().contacts};
     }
-    static const char* engineName() { return "legacy (single-pass projection + impulse, hash grid)"; }
+    static const char* engineName() { return "phys::World (sequential impulses, 8 iterations, swept-AABB hash grid)"; }
 
 private:
-    WorldPhysics world_;
-    TimeManager time_;
+    phys::World world_;
 };
 
 }  // namespace bench

@@ -8,8 +8,7 @@
 #include <vector>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
-#include "physics/rigidBody.hpp"
-#include "physics/spring.hpp"
+#include "physics/world.hpp"
 
 class Graphics {
 private:
@@ -34,14 +33,13 @@ public:
     ~Graphics();
 
     void clear();
-    void drawCircle(const RigidBody& body, const std::array<int, 4>& color);
-    void drawSpring(const Spring& spring, const std::array<int, 4>& color);
+    void drawCircle(const phys::Body& body, const std::array<int, 4>& color);
     void drawText(const std::string& text, int x, int y, const std::array<int, 4>& color);
     void present();
     bool processEvents();
     void updateSize(int width, int height);
 
-    void printPhysicsInfo(const std::vector<RigidBody>& bodies, const std::array<double, 2>& gravity);
+    void printPhysicsInfo(double kinetic, double potential);
 
     // optional helper
     double getFPS() const { return fps_; }

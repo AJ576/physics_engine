@@ -1,0 +1,164 @@
+#pragma once
+// 2D rigid-body world: circles with rotation, Coulomb friction and
+// restitution, solved with sequential impulses.
+//
+// Units are pixels, seconds and kilograms. Gravity defaults to
+// $980\ \mathrm{px/s^2}$ downward ($y$ is up).
+//
+// One step of length $\Delta t$ (semi-implicit Euler with a velocity-level
+// constraint solver in between):
+//   1. velocities: $v \mathrel{+}= a\,\Delta t$, $\omega \mathrel{+}= \alpha\,\Delta t$
+//   2. broadphase (uniform grid over swept AABBs) and narrowphase (circle-circle,
+//      circle-wall), creating touching and speculative contacts
+//   3. warm start, then sequential impulses: friction clamped to the cone
+//      $|j_t| \le \mu j_n$, normal impulse clamped to $j_n \ge 0$ (accumulated);
+//      then a restitution pass
+//   4. positions: $x \mathrel{+}= v\,\Delta t$, plus split-impulse position correction
+#include "physics/vec2.hpp"
+
+#include <cstddef>
+#include <cstdint>
+#include <unordered_map>
+#include <vector>
+
+namespace phys {
+
+struct Body {
+    Vec2 pos, vel;
+    double angle = 0.0, angVel = 0.0;  // rad, rad/s (counter-clockwise)
+    double radius = 1.0;
+    double mass = 1.0, invMass = 1.0;
+    double inertia = 0.5, invInertia = 2.0;  // solid disc: $I = \tfrac12 m r^2$
+    Vec2 force;            // accumulated external force, cleared every step
+    double torque = 0.0;   // accumulated external torque, cleared every step
+
+    bool isStatic() const { return invMass == 0.0; }
+};
+
+// A circle of the given radius and mass. mass <= 0 makes it static (infinite
+// mass and inertia: it never moves).
+Body makeBody(double radius, double mass, Vec2 pos, Vec2 vel = {}, double angVel = 0.0);
+
+enum class Integrator {
+    SemiImplicitEuler,  // $v_{n+1} = v_n + a_n\Delta t$, $x_{n+1} = x_n + v_{n+1}\Delta t$ (default)
+    ExplicitEuler,      // $x_{n+1} = x_n + v_n\Delta t$, $v_{n+1} = v_n + a_n\Delta t$
+    ConstantAccel,      // the old engine: $x_{n+1} = x_n + v_n\Delta t + \tfrac12 a_n\Delta t^2$
+};
+
+enum class Broadphase { Grid, BruteForce };
+enum class PositionCorrection { None, Baumgarte, SplitImpulse };
+
+struct WorldConfig {
+    double dt = 1.0 / 60.0;
+    Vec2 gravity{0.0, -980.0};
+    double width = 800.0, height = 600.0;  // walls at x = 0, x = width, y = 0, y = height
+    bool walls = true;
+
+    double restitution = 0.7;
+    double friction = 0.3;
+    // Approach speeds below this do not bounce. < 0 means automatic:
+    // $2\,|g|\,\Delta t$, so a body resting under gravity (which arrives at
+    // $|g|\Delta t$ every step) does not jitter. With $g = 0$ every approach bounces.
+    double restitutionThreshold = -1.0;
+
+    int velocityIterations = 8;
+    int positionIterations = 4;  // split-impulse iterations
+    PositionCorrection positionCorrection = PositionCorrection::SplitImpulse;
+    double baumgarte = 0.2;   // fraction of penetration removed per step
+    double slop = 0.01;       // px of penetration allowed before correcting
+    bool warmStarting = true;
+    bool continuous = false;  // body-body swept-circle test: speculative contacts for fast pairs (CCD)
+    // Pairs closer than this get a speculative contact even if they are not
+    // approaching yet: the solver changes velocities (e.g. the floor stops the
+    // lower of two bodies falling together), so a pair with zero relative
+    // velocity at detection can still close within the step. Should exceed
+    // $|g|\,\Delta t^2$ (0.27 px at the defaults).
+    double speculativeDistance = 1.0;  // px
+
+    Integrator integrator = Integrator::SemiImplicitEuler;
+    Broadphase broadphase = Broadphase::Grid;
+    double cellSize = 10.0;   // px; any value is correct (bodies span cells), speed varies
+};
+
+struct Contact {
+    int a = 0;            // body index
+    int b = 0;            // body index, or wall: -1 left, -2 right, -3 bottom, -4 top
+    Vec2 normal;          // unit, from a to b
+    double separation = 0.0;  // < 0 penetrating, > 0 speculative gap
+    Vec2 ra, rb;          // contact point relative to the centres
+    double normalMass = 0.0, tangentMass = 0.0;
+    double normalImpulse = 0.0, tangentImpulse = 0.0;  // accumulated
+    double maxNormalImpulse = 0.0;
+    double relativeVelocity = 0.0;  // normal relative velocity at the start of the step (before forces)
+    double pseudoImpulse = 0.0;     // split impulse (position correction)
+};
+
+// Narrowphase for two circles. Returns true and fills normal (a -> b) and
+// separation if they overlap now, if the gap is below `margin`, or, when
+// `continuous` is set, if the
+// swept-circle test $|d + v_r t| = r_a + r_b$ has a root $t \in [0, \Delta t]$
+// (a speculative contact with separation >= 0 and the normal at impact).
+// `margin` is the speculative distance (contacts are also made for gaps below it).
+bool collideCircles(const Body& a, const Body& b, double dt, bool continuous, Vec2& normal, double& separation,
+                    double margin = 0.0);
+
+struct StepStats {
+    std::size_t candidatePairs = 0;  // body pairs that reached the narrowphase
+    std::size_t contacts = 0;        // body-body contacts (touching + speculative)
+    std::size_t speculative = 0;     // of which speculative (not yet touching)
+    std::size_t wallContacts = 0;
+};
+
+class World {
+public:
+    explicit World(const WorldConfig& cfg = {});
+
+    int addBody(const Body& b);
+    void clear();
+
+    void step();
+
+    WorldConfig& config() { return cfg_; }
+    const WorldConfig& config() const { return cfg_; }
+    std::vector<Body>& bodies() { return bodies_; }
+    const std::vector<Body>& bodies() const { return bodies_; }
+    const std::vector<Contact>& contacts() const { return contacts_; }
+    const StepStats& lastStepStats() const { return stats_; }
+
+    // $\sum \tfrac12 m v^2 + \tfrac12 I \omega^2$
+    double kineticEnergy() const;
+    // gravity: $\sum -m\,g\cdot x$
+    double potentialEnergy() const;
+    double totalEnergy() const { return kineticEnergy() + potentialEnergy(); }
+    Vec2 linearMomentum() const;
+    double angularMomentum() const;  // about the origin, including spin
+
+private:
+    void integrateVelocities();
+    void collide();
+    void narrowphase(int i, int j);
+    void wallContacts(int i);
+    void prepareContacts();
+    void warmStart();
+    void solveVelocities();
+    void applyRestitution();
+    void storeImpulses();
+    void solvePositions();
+    void integratePositions();
+
+    double restitutionThreshold() const;
+
+    WorldConfig cfg_;
+    std::vector<Body> bodies_;
+    std::vector<Contact> contacts_;
+    std::vector<Vec2> pseudoVel_;     // split-impulse velocities (linear only)
+    std::vector<Vec2> prevVel_;       // velocities before this step's forces (for restitution)
+    std::vector<double> prevAngVel_;
+    std::vector<Vec2> velCorrection_; // integrator-specific position term
+    std::unordered_map<std::uint64_t, std::vector<int>> grid_;
+    std::vector<int> oversized_;
+    std::unordered_map<std::uint64_t, Vec2> impulseCache_;  // (normal, tangent) by contact key
+    StepStats stats_;
+};
+
+}  // namespace phys

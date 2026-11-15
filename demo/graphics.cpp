@@ -53,33 +53,21 @@ void Graphics::clear() {
     SDL_RenderClear(renderer);
 }
 
-void Graphics::drawCircle(const RigidBody& body, const std::array<int, 4>& color) {
-    int r = std::max(1, (int)std::round(body.getRadius()));
+void Graphics::drawCircle(const phys::Body& body, const std::array<int, 4>& color) {
+    int r = std::max(1, (int)std::round(body.radius));
     SDL_Texture* tex = getCircleTexture(r);
 
     SDL_SetTextureColorMod(tex, (Uint8)color[0], (Uint8)color[1], (Uint8)color[2]);
     SDL_SetTextureAlphaMod(tex, (Uint8)color[3]);
 
-    auto p = body.getPosition();
+    const phys::Vec2 p = body.pos;
     SDL_Rect dst;
     dst.w = r * 2;
     dst.h = r * 2;
-    dst.x = (int)std::round(p[0]) - r;
-    dst.y = windowHeight - ((int)std::round(p[1]) + r); // keep your Y-flip convention
+    dst.x = (int)std::round(p.x) - r;
+    dst.y = windowHeight - ((int)std::round(p.y) + r); // keep your Y-flip convention
 
     SDL_RenderCopy(renderer, tex, nullptr, &dst);
-}
-
-void Graphics::drawSpring(const Spring& spring, const std::array<int, 4>& color) {
-    SDL_SetRenderDrawColor(renderer, (Uint8)color[0], (Uint8)color[1], (Uint8)color[2], (Uint8)color[3]);
-    SDL_Rect rect;
-    rect.x = (int)std::round(spring.getX());
-    // Physics y is up; SDL y is down — match drawCircle convention.
-    // Anchor the bottom at the ground (getY()) so only the top moves when compressed.
-    rect.y = windowHeight - (int)std::round(spring.getY() + spring.getCurrentHeight());
-    rect.w = std::max(1, (int)std::round(spring.getWidth()));
-    rect.h = std::max(1, (int)std::round(spring.getCurrentHeight()));
-    SDL_RenderFillRect(renderer, &rect);
 }
 
 void Graphics::drawText(const std::string& text, int x, int y, const std::array<int, 4>& color) {
@@ -133,29 +121,11 @@ void Graphics::updateSize(int width, int height)
     windowWidth = width;
 }
 
-void Graphics::printPhysicsInfo(const std::vector<RigidBody>& bodies, const std::array<double, 2>& gravity) {
+void Graphics::printPhysicsInfo(double totalKE, double totalPE) {
     if (!font) return;
 
     // hide info text on very small windows
     if (windowWidth < 320 || windowHeight < 240) return;
-
-    // Compute total kinetic energy
-    double totalKE = 0.0;
-    double totalPE = 0.0;
-
-    for (const auto& body : bodies) {
-        const auto v = body.getVelocity();
-        const auto p = body.getPosition();
-        const double m = body.getMass();
-
-        totalKE += 0.5 * m * (v[0] * v[0] + v[1] * v[1]);
-
-        if (gravity[0] != 0.0) {
-            totalPE += m * (-gravity[0]) * p[0];
-        } else if (gravity[1] != 0.0) {
-            totalPE += m * (-gravity[1]) * p[1];
-        }
-    }
 
     // Relative placement
     int x = static_cast<int>(windowWidth * 0.02);
