@@ -205,7 +205,25 @@ private:
     std::vector<Vec2> prevVel_;       // velocities before this step's forces (for restitution)
     std::vector<double> prevAngVel_;
     std::vector<Vec2> velCorrection_; // integrator-specific position term
-    std::unordered_map<std::uint64_t, std::vector<int>> grid_;
+    struct Aabb {
+        double minX, minY, maxX, maxY;
+    };
+    // Uniform grid in flat arrays, rebuilt each substep by counting sort:
+    // cellStart_[c] .. cellStart_[c + 1] indexes items_ (body ids, ascending).
+    struct Grid {
+        double originX = 0.0, originY = 0.0, invX = 0.1, invY = 0.1;
+        int nx = 1, ny = 1;
+        int cellX(double x) const;
+        int cellY(double y) const;
+    };
+    struct CellRange {
+        int x0, y0, x1, y1;
+    };
+    void buildGrid(double cellSize, double dt, double pad);
+    Grid grid_;
+    std::vector<int> cellStart_, cellCursor_, items_;
+    std::vector<Aabb> boxes_;
+    std::vector<CellRange> ranges_;
     std::vector<int> oversized_;
     double h_ = 1.0 / 60.0;  // current substep length
     double cellSizeUsed_ = 10.0;

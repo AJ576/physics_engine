@@ -7,26 +7,9 @@ namespace phys {
 
 namespace {
 
-// Cell coordinate of a world coordinate, clamped so the float -> int
-// conversion is always defined (huge, infinite or NaN inputs included).
-inline std::int32_t cellCoord(double v, double invCell) {
-    double c = std::floor(v * invCell);
-    if (!(c >= -1.0e9)) c = -1.0e9;  // also catches NaN
-    if (c > 1.0e9) c = 1.0e9;
-    return static_cast<std::int32_t>(c);
-}
-
-inline std::uint64_t cellKey(std::int32_t x, std::int32_t y) {
-    return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(x)) << 32) | static_cast<std::uint32_t>(y);
-}
-
 inline std::uint64_t contactKey(int a, int b) {
     return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(a)) << 32) | static_cast<std::uint32_t>(b);
 }
-
-struct Aabb {
-    double minX, minY, maxX, maxY;
-};
 
 // A body whose swept AABB spans more cells than this is tested against
 // every body instead of being inserted into the grid.
@@ -89,7 +72,7 @@ void World::clear() {
     jointState_.clear();
     contacts_.clear();
     impulseCache_.clear();
-    grid_.clear();
+    items_.clear();
 }
 
 double World::restitutionThreshold() const {
@@ -167,6 +150,88 @@ void World::integrateVelocities() {
 }
 
 // --------------------------------------------------------------- collision
+int World::Grid::cellX(double x) const {
+    const double c = std::floor((x - originX) * invX);
+    if (!(c > 0.0)) return 0;  // also NaN
+    return c >= nx - 1 ? nx - 1 : static_cast<int>(c);
+}
+
+int World::Grid::cellY(double y) const {
+    const double c = std::floor((y - originY) * invY);
+    if (!(c > 0.0)) return 0;
+    return c >= ny - 1 ? ny - 1 : static_cast<int>(c);
+}
+
+// Counting sort of (cell, body) entries into flat arrays. The grid covers the
+// bounding box of all AABBs (clamped to +-1e9); coordinates outside it are
+// clamped to the border cells, which keeps the result exact. The cell count
+// is capped at max(1024, 4N) by enlarging cells if the bodies are spread
+// over a huge area. All buffers keep their capacity between steps.
+void World::buildGrid(double cellSize, double dt, double pad) {
+    const std::size_t n = bodies_.size();
+    boxes_.resize(n);
+    ranges_.resize(n);
+    oversized_.clear();
+    double minX = 1e300, minY = 1e300, maxX = -1e300, maxY = -1e300;
+    for (std::size_t i = 0; i < n; ++i) {
+        const Body& b = bodies_[i];
+        const Vec2 p1 = b.pos + b.vel * dt;
+        const double r = b.radius + pad;
+        Aabb box{std::min(b.pos.x, p1.x) - r, std::min(b.pos.y, p1.y) - r, std::max(b.pos.x, p1.x) + r,
+                 std::max(b.pos.y, p1.y) + r};
+        boxes_[i] = box;
+        if (std::isfinite(box.minX) && std::isfinite(box.maxX) && std::isfinite(box.minY) && std::isfinite(box.maxY)) {
+            minX = std::min(minX, box.minX);
+            minY = std::min(minY, box.minY);
+            maxX = std::max(maxX, box.maxX);
+            maxY = std::max(maxY, box.maxY);
+        }
+    }
+    if (minX > maxX) minX = maxX = minY = maxY = 0.0;
+    minX = std::max(minX, -1e9);
+    minY = std::max(minY, -1e9);
+    maxX = std::min(maxX, 1e9);
+    maxY = std::min(maxY, 1e9);
+    const double ex = std::max(maxX - minX, cellSize), ey = std::max(maxY - minY, cellSize);
+    double nx = std::ceil(ex / cellSize), ny = std::ceil(ey / cellSize);
+    const double maxCells = std::max(1024.0, 4.0 * static_cast<double>(n));
+    if (nx * ny > maxCells) {
+        const double f = std::sqrt(nx * ny / maxCells);
+        nx = std::max(1.0, std::floor(nx / f));
+        ny = std::max(1.0, std::floor(ny / f));
+    }
+    grid_.originX = minX;
+    grid_.originY = minY;
+    grid_.nx = static_cast<int>(nx);
+    grid_.ny = static_cast<int>(ny);
+    grid_.invX = nx / ex;
+    grid_.invY = ny / ey;
+
+    const std::size_t cells = static_cast<std::size_t>(grid_.nx) * static_cast<std::size_t>(grid_.ny);
+    cellStart_.assign(cells + 1, 0);
+    for (std::size_t i = 0; i < n; ++i) {
+        const Aabb& box = boxes_[i];
+        CellRange& r = ranges_[i];
+        r = {grid_.cellX(box.minX), grid_.cellY(box.minY), grid_.cellX(box.maxX), grid_.cellY(box.maxY)};
+        if ((r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1) > kMaxCellsPerBody) {
+            oversized_.push_back(static_cast<int>(i));
+            r.x1 = r.x0 - 1;  // empty range: not inserted
+            continue;
+        }
+        for (int y = r.y0; y <= r.y1; ++y)
+            for (int x = r.x0; x <= r.x1; ++x) ++cellStart_[static_cast<std::size_t>(y * grid_.nx + x) + 1];
+    }
+    for (std::size_t c = 0; c < cells; ++c) cellStart_[c + 1] += cellStart_[c];
+    items_.resize(static_cast<std::size_t>(cellStart_[cells]));
+    cellCursor_.assign(cellStart_.begin(), cellStart_.end() - 1);
+    for (std::size_t i = 0; i < n; ++i) {
+        const CellRange& r = ranges_[i];
+        for (int y = r.y0; y <= r.y1; ++y)
+            for (int x = r.x0; x <= r.x1; ++x)
+                items_[static_cast<std::size_t>(cellCursor_[static_cast<std::size_t>(y * grid_.nx + x)]++)] = static_cast<int>(i);
+    }
+}
+
 void World::collide() {
     contacts_.clear();
     const int n = static_cast<int>(bodies_.size());
@@ -192,29 +257,9 @@ void World::collide() {
     // contains the min corner of the two AABBs' intersection, which both
     // bodies cover, so each pair is tested exactly once.
     const double cell = cfg_.cellSize > 0.0 ? cfg_.cellSize : 10.0;
-    const double inv = 1.0 / cell;
     cellSizeUsed_ = cell;
-    const double dt = cfg_.continuous ? h_ : 0.0;
-    const double pad = 0.5 * cfg_.speculativeDistance;  // two pads = one margin
-    std::vector<Aabb> boxes(static_cast<std::size_t>(n));
-    grid_.clear();
-    oversized_.clear();
-    for (int i = 0; i < n; ++i) {
-        const Body& b = bodies_[static_cast<std::size_t>(i)];
-        const Vec2 p1 = b.pos + b.vel * dt;
-        const double r = b.radius + pad;
-        Aabb box{std::min(b.pos.x, p1.x) - r, std::min(b.pos.y, p1.y) - r, std::max(b.pos.x, p1.x) + r,
-                 std::max(b.pos.y, p1.y) + r};
-        boxes[static_cast<std::size_t>(i)] = box;
-        const std::int32_t x0 = cellCoord(box.minX, inv), x1 = cellCoord(box.maxX, inv);
-        const std::int32_t y0 = cellCoord(box.minY, inv), y1 = cellCoord(box.maxY, inv);
-        if (static_cast<std::int64_t>(x1 - x0 + 1) * (y1 - y0 + 1) > kMaxCellsPerBody) {
-            oversized_.push_back(i);
-            continue;
-        }
-        for (std::int32_t y = y0; y <= y1; ++y)
-            for (std::int32_t x = x0; x <= x1; ++x) grid_[cellKey(x, y)].push_back(i);
-    }
+    buildGrid(cell, cfg_.continuous ? h_ : 0.0, 0.5 * cfg_.speculativeDistance);
+    const std::vector<Aabb>& boxes = boxes_;
 
     auto overlap = [&](int i, int j) {
         const Aabb& a = boxes[static_cast<std::size_t>(i)];
@@ -222,20 +267,22 @@ void World::collide() {
         return a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY;
     };
 
-    for (auto& entry : grid_) {
-        const std::int32_t cx = static_cast<std::int32_t>(entry.first >> 32);
-        const std::int32_t cy = static_cast<std::int32_t>(entry.first & 0xFFFFFFFFu);
-        const std::vector<int>& ids = entry.second;
-        for (std::size_t p = 0; p < ids.size(); ++p) {
-            for (std::size_t q = p + 1; q < ids.size(); ++q) {
-                const int i = ids[p], j = ids[q];  // i < j: bodies are inserted in index order
-                if (!overlap(i, j)) continue;
-                const Aabb& a = boxes[static_cast<std::size_t>(i)];
-                const Aabb& b = boxes[static_cast<std::size_t>(j)];
-                if (cellCoord(std::max(a.minX, b.minX), inv) != cx || cellCoord(std::max(a.minY, b.minY), inv) != cy)
-                    continue;
-                ++stats_.candidatePairs;
-                narrowphase(i, j);
+    for (int cy = 0; cy < grid_.ny; ++cy) {
+        for (int cx = 0; cx < grid_.nx; ++cx) {
+            const int c = cy * grid_.nx + cx;
+            const int begin = cellStart_[static_cast<std::size_t>(c)], end = cellStart_[static_cast<std::size_t>(c) + 1];
+            for (int p = begin; p < end; ++p) {
+                const int i = items_[static_cast<std::size_t>(p)];
+                for (int q = p + 1; q < end; ++q) {
+                    const int j = items_[static_cast<std::size_t>(q)];  // i < j: filled in index order
+                    if (!overlap(i, j)) continue;
+                    const Aabb& a = boxes[static_cast<std::size_t>(i)];
+                    const Aabb& b = boxes[static_cast<std::size_t>(j)];
+                    if (grid_.cellX(std::max(a.minX, b.minX)) != cx || grid_.cellY(std::max(a.minY, b.minY)) != cy)
+                        continue;
+                    ++stats_.candidatePairs;
+                    narrowphase(i, j);
+                }
             }
         }
     }
@@ -639,24 +686,24 @@ void World::clampFastMotion() {
     // Fast vs slow. A slow body moves at most half its radius, so it is found
     // in the cells (built in collide()) around the fast body's path padded by
     // its radius, the largest radius and half the largest radius.
-    const double inv = 1.0 / cellSizeUsed_;
     for (int f : fast_) {
         const Body& F = bodies_[static_cast<std::size_t>(f)];
         const Vec2 p1 = F.pos + disp(static_cast<std::size_t>(f));
         const double pad = F.radius + 1.5 * maxRadius_ + cfg_.speculativeDistance;
-        const std::int32_t x0 = cellCoord(std::min(F.pos.x, p1.x) - pad, inv), x1 = cellCoord(std::max(F.pos.x, p1.x) + pad, inv);
-        const std::int32_t y0 = cellCoord(std::min(F.pos.y, p1.y) - pad, inv), y1 = cellCoord(std::max(F.pos.y, p1.y) + pad, inv);
+        const int x0 = grid_.cellX(std::min(F.pos.x, p1.x) - pad), x1 = grid_.cellX(std::max(F.pos.x, p1.x) + pad);
+        const int y0 = grid_.cellY(std::min(F.pos.y, p1.y) - pad), y1 = grid_.cellY(std::max(F.pos.y, p1.y) + pad);
         if (cfg_.broadphase == Broadphase::BruteForce ||
             static_cast<std::int64_t>(x1 - x0 + 1) * (y1 - y0 + 1) > 4096) {
             for (std::size_t j = 0; j < n; ++j)
                 if (!isFast_[j]) hit(f, static_cast<int>(j));
         } else {
-            for (std::int32_t y = y0; y <= y1; ++y)
-                for (std::int32_t x = x0; x <= x1; ++x) {
-                    auto it = grid_.find(cellKey(x, y));
-                    if (it == grid_.end()) continue;
-                    for (int j : it->second)
+            for (int y = y0; y <= y1; ++y)
+                for (int x = x0; x <= x1; ++x) {
+                    const auto c = static_cast<std::size_t>(y * grid_.nx + x);
+                    for (int p = cellStart_[c]; p < cellStart_[c + 1]; ++p) {
+                        const int j = items_[static_cast<std::size_t>(p)];
                         if (!isFast_[static_cast<std::size_t>(j)]) hit(f, j);
+                    }
                 }
             for (int j : oversized_)
                 if (!isFast_[static_cast<std::size_t>(j)]) hit(f, j);
