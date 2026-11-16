@@ -1,0 +1,22 @@
+== gas N=20000 (5 runs x 300 steps, median p50; sd of run means)
+cell    3: mean 5.550 p50 5.324 p99 7.533 sd 0.3090 cand 3084
+cell    4: mean 5.674 p50 5.539 p99 7.329 sd 0.1523 cand 3069
+cell    5: mean 5.415 p50 5.340 p99 6.833 sd 0.1680 cand 3081
+cell    6: mean 5.222 p50 5.142 p99 6.415 sd 0.1304 cand 3095
+cell    8: mean 5.631 p50 5.604 p99 7.528 sd 0.4162 cand 3081
+cell   10: mean 5.447 p50 5.229 p99 8.184 sd 0.1690 cand 3081
+cell   12: mean 5.571 p50 5.301 p99 8.308 sd 0.3825 cand 3082
+cell   15: mean 5.319 p50 5.292 p99 7.794 sd 0.1903 cand 3093
+cell   20: mean 5.619 p50 5.476 p99 7.855 sd 0.1963 cand 3103
+cell   30: mean 6.064 p50 5.969 p99 8.775 sd 0.1989 cand 3080
+== pile N=5000 (5 runs x 300 steps, median p50; sd of run means)
+cell    3: mean 8.468 p50 8.447 p99 9.813 sd 0.5560 cand 15167
+cell    4: mean 8.278 p50 8.116 p99 11.062 sd 0.2606 cand 15205
+cell    5: mean 8.555 p50 7.992 p99 11.623 sd 0.4928 cand 15252
+cell    6: mean 7.847 p50 7.661 p99 11.173 sd 0.2079 cand 15319
+cell    8: mean 7.845 p50 7.589 p99 11.119 sd 0.1234 cand 15367
+cell   10: mean 7.900 p50 7.727 p99 11.318 sd 0.1243 cand 15512
+cell   12: mean 8.188 p50 8.105 p99 10.523 sd 0.4013 cand 15431
+cell   15: mean 8.025 p50 7.795 p99 11.264 sd 0.3124 cand 15476
+cell   20: mean 8.403 p50 8.200 p99 10.976 sd 0.3402 cand 15497
+cell   30: mean 9.011 p50 8.822 p99 12.315 sd 0.1161 cand 15512

@@ -2,91 +2,115 @@ cmake_minimum_required(VERSION 3.16)
 project(physics_engine LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Help CMake find Homebrew libraries on macOS
-if(APPLE)
-    execute_process(COMMAND brew --prefix OUTPUT_VARIABLE HOMEBREW_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-    if(HOMEBREW_PREFIX)
-        list(APPEND CMAKE_PREFIX_PATH "${HOMEBREW_PREFIX}")
+# A plain `cmake -B build` used to produce an unoptimized build. Default to Release.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+option(PHYS_WERROR "Treat warnings as errors" OFF)
+option(PHYS_SANITIZE "Build with AddressSanitizer + UndefinedBehaviorSanitizer" OFF)
+option(PHYS_BUILD_DEMO "Build the SDL2 demo if SDL2 and SDL2_ttf are found" ON)
+
+# Warning flags applied to every first-party target (not to third_party/).
+add_library(phys_warnings INTERFACE)
+if(MSVC)
+    target_compile_options(phys_warnings INTERFACE /W4)
+else()
+    target_compile_options(phys_warnings INTERFACE -Wall -Wextra -Wpedantic)
+    if(PHYS_WERROR)
+        target_compile_options(phys_warnings INTERFACE -Werror)
     endif()
 endif()
 
-# Find SDL2 and SDL2_ttf
-find_package(SDL2 REQUIRED)
-find_package(SDL2_ttf REQUIRED)
-
-# Ensure include path is set (SDL2/SDL2_ttf headers live in include/SDL2/)
-set(EXTRA_INCLUDES)
-if(APPLE AND HOMEBREW_PREFIX)
-    list(APPEND EXTRA_INCLUDES "${HOMEBREW_PREFIX}/include")
+if(PHYS_SANITIZE)
+    # float-cast-overflow is not part of GCC's -fsanitize=undefined group, so name it.
+    set(PHYS_SAN_FLAGS -fsanitize=address,undefined,float-cast-overflow
+                       -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    add_compile_options(${PHYS_SAN_FLAGS})
+    add_link_options(${PHYS_SAN_FLAGS})
 endif()
 
-# Core physics library (pure simulation, no SDL dependencies)
+# ---------------------------------------------------------------------------
+# physics_core: the simulation. No SDL, no I/O.
 add_library(physics_core STATIC
-    physics.cpp
-    rigidBody.cpp
-    spring.cpp
+    core/src/scene.cpp
+    core/src/world.cpp
+    core/src/scenes.cpp
+    core/src/thread_pool.cpp
 )
+target_include_directories(physics_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/core/include)
+find_package(Threads REQUIRED)
+target_link_libraries(physics_core PUBLIC Threads::Threads PRIVATE phys_warnings)
 
-target_include_directories(physics_core PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# Main executable (with SDL graphics)
-add_executable(physics_engine
-    main.cpp
-    graphics.cpp
-)
-
-target_include_directories(physics_engine PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${EXTRA_INCLUDES}
-)
-
-target_link_libraries(physics_engine PRIVATE
-    physics_core
-)
-
-# Link SDL2 libraries - use imported targets when available, else fallback
-if(TARGET SDL2::SDL2)
-    target_link_libraries(physics_engine PRIVATE SDL2::SDL2)
-else()
-    target_include_directories(physics_engine PRIVATE ${SDL2_INCLUDE_DIRS})
-    target_link_libraries(physics_engine PRIVATE ${SDL2_LIBRARY})
-endif()
-
-if(TARGET SDL2_ttf::SDL2_ttf)
-    target_link_libraries(physics_engine PRIVATE SDL2_ttf::SDL2_ttf)
-else()
-    target_include_directories(physics_engine PRIVATE ${SDL2_TTF_INCLUDE_DIRS})
-    target_link_libraries(physics_engine PRIVATE ${SDL2_TTF_LIBRARY})
-endif()
-
-# Physics correctness unit tests
+# ---------------------------------------------------------------------------
+# physics_tests: doctest 2.4.11 (vendored single header, third_party/doctest).
 add_executable(physics_tests
-    tests/test_physics.cpp
+    tests/test_main.cpp
+    tests/test_world.cpp
+    tests/test_audit_bugs.cpp
+    tests/test_springs.cpp
+    tests/test_scenes.cpp
+    tests/test_conservation.cpp
 )
+target_include_directories(physics_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+target_link_libraries(physics_tests PRIVATE physics_core phys_warnings)
 
-target_include_directories(physics_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-target_link_libraries(physics_tests PRIVATE
-    physics_core
-)
-
-# Performance Benchmark Suite
-add_executable(benchmark_suite
-    benchmarks/benchmark_suite.cpp
-)
-
-target_include_directories(benchmark_suite PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-target_link_libraries(benchmark_suite PRIVATE
-    physics_core
-)
+# Separate binary: replaces the global operator new to count allocations.
+add_executable(alloc_tests tests/test_main.cpp tests/test_alloc.cpp)
+target_include_directories(alloc_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+target_link_libraries(alloc_tests PRIVATE physics_core phys_warnings)
 
 enable_testing()
-add_test(NAME PhysicsCorrectnessTests COMMAND physics_tests)
+add_test(NAME physics_tests COMMAND physics_tests)
+add_test(NAME alloc_tests COMMAND alloc_tests)
+
+# ---------------------------------------------------------------------------
+# Benchmarks (never run in CI).
+string(TOUPPER "${CMAKE_BUILD_TYPE}" _bt)
+set(PHYS_BUILD_INFO "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}, ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${_bt}}")
+string(STRIP "${PHYS_BUILD_INFO}" PHYS_BUILD_INFO)
+add_executable(physics_bench bench/bench_main.cpp)
+target_link_libraries(physics_bench PRIVATE physics_core phys_warnings)
+target_compile_definitions(physics_bench PRIVATE PHYS_BENCH_BUILD_INFO="${PHYS_BUILD_INFO}")
+
+add_executable(physics_integrators bench/integrator_study.cpp)
+target_link_libraries(physics_integrators PRIVATE physics_core phys_warnings)
+
+
+# ---------------------------------------------------------------------------
+# physics_demo: optional SDL2 front end.
+if(PHYS_BUILD_DEMO)
+    if(APPLE)
+        execute_process(COMMAND brew --prefix OUTPUT_VARIABLE HOMEBREW_PREFIX
+                        OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        if(HOMEBREW_PREFIX)
+            list(APPEND CMAKE_PREFIX_PATH "${HOMEBREW_PREFIX}")
+        endif()
+    endif()
+    find_package(SDL2 QUIET)
+    find_package(SDL2_ttf QUIET)
+    if(SDL2_FOUND AND SDL2_ttf_FOUND)
+        add_executable(physics_demo demo/main.cpp demo/graphics.cpp)
+        target_link_libraries(physics_demo PRIVATE physics_core phys_warnings)
+        if(TARGET SDL2::SDL2)
+            target_link_libraries(physics_demo PRIVATE SDL2::SDL2)
+        else()
+            target_include_directories(physics_demo PRIVATE ${SDL2_INCLUDE_DIRS})
+            target_link_libraries(physics_demo PRIVATE ${SDL2_LIBRARIES})
+        endif()
+        if(TARGET SDL2_ttf::SDL2_ttf)
+            target_link_libraries(physics_demo PRIVATE SDL2_ttf::SDL2_ttf)
+        else()
+            target_link_libraries(physics_demo PRIVATE SDL2_ttf)
+        endif()
+        if(APPLE AND HOMEBREW_PREFIX)
+            target_include_directories(physics_demo PRIVATE "${HOMEBREW_PREFIX}/include")
+        endif()
+    else()
+        message(STATUS "SDL2/SDL2_ttf not found: skipping physics_demo")
+    endif()
+endif()

@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    name: build + test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      # SDL2 is only needed for the demo. If installing it fails, the core,
+      # tests and benchmarks still build (CMake skips physics_demo).
+      - name: Install SDL2 (optional, Linux)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev libsdl2-ttf-dev
+      - name: Install SDL2 (optional, macOS)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: brew install sdl2 sdl2_ttf
+
+      - name: Configure
+        run: cmake --preset release -DPHYS_WERROR=ON
+      - name: Build
+        run: cmake --build --preset release -j 4
+      - name: Test
+        run: ctest --preset release
+      - name: Integrator study runs (deterministic, no timing)
+        run: ./build/release/physics_integrators --steps 1000 > /dev/null
+
+  sanitizers:
+    name: ASan + UBSan (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake --preset asan -DPHYS_WERROR=ON
+      - name: Build
+        run: cmake --build --preset asan -j 4
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --preset asan

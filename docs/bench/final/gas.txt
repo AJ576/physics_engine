@@ -1,0 +1,39 @@
+engine: phys::World (sequential impulses, 8 iterations, swept-AABB hash grid)
+build: GNU 13.3.0, Release:  -O3 -DNDEBUG
+scene: gas (constant density 96 px^2/body, gravity 0 px/s^2, e=1.00, seed 42)
+runs=7 warmup=120 steps/run=300 dt=1/60 s threads=1; times in ms, median over runs; sd = stddev of run means
+
+      N      mean       p50       p99       max       sd sd/mean    cand.pairs    contacts    brute pairs  brute mean  speedup
+    500     0.108     0.108     0.152     0.252   0.0139  12.85%           174          79         124750       3.070    28.3x
+   1000     0.214     0.211     0.255     0.286   0.0058   2.72%           338         153         499500      12.440    58.0x
+   2000     0.472     0.445     0.705     1.241   0.0613  12.98%           683         307        1999000      48.616   103.0x
+   5000     1.191     1.127     1.649     1.882   0.0683   5.74%          1736         773       12497500     313.211   263.0x
+  10000     2.757     2.507     3.731     4.912   0.1402   5.08%          3473        1552       49995000    1298.548   471.0x
+  20000     5.933     5.440     8.168     9.403   0.4383   7.39%          6922        3081      199990000    5155.220   868.9x
+  search[p99] N=2000 -> 0.520 ms
+  search[p99] N=4000 -> 1.103 ms
+  search[p99] N=8000 -> 2.683 ms
+  search[p99] N=16000 -> 6.782 ms
+  search[p99] N=32000 -> 13.803 ms
+  search[p99] N=64000 -> 34.395 ms
+  search[p99] N=48000 -> 21.409 ms
+  search[p99] N=40000 -> 17.088 ms
+  search[p99] N=36000 -> 16.619 ms
+  search[p99] N=38000 -> 16.154 ms
+  search[p99] N=39000 -> 17.091 ms
+  search[p99] N=38500 -> 17.354 ms
+  search[p99] N=38250 -> 17.357 ms
+largest N with p99 step <= 16.667 ms: 38000 (next tested N=38250 failed)
+  search[mean] N=2000 -> 0.447 ms
+  search[mean] N=4000 -> 0.908 ms
+  search[mean] N=8000 -> 2.064 ms
+  search[mean] N=16000 -> 4.417 ms
+  search[mean] N=32000 -> 9.911 ms
+  search[mean] N=64000 -> 23.035 ms
+  search[mean] N=48000 -> 15.707 ms
+  search[mean] N=56000 -> 19.391 ms
+  search[mean] N=52000 -> 17.560 ms
+  search[mean] N=50000 -> 16.603 ms
+  search[mean] N=51000 -> 17.448 ms
+  search[mean] N=50500 -> 16.964 ms
+largest N with mean step <= 16.667 ms: 50000 (next tested N=50500 failed)
